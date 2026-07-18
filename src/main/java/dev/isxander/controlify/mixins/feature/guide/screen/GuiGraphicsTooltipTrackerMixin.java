@@ -29,6 +29,7 @@ public class GuiGraphicsTooltipTrackerMixin {
         );
         TooltipTracker.record(
                 Minecraft.getInstance().screen,
+                mouseX, mouseY,
                 position.x(), position.y(), tooltipWidth, tooltipHeight
         );
         return position;

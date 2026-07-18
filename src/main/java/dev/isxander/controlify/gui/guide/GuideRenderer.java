@@ -122,6 +122,10 @@ public final class GuideRenderer {
     }
 
     public record Bounds(int left, int top, int right, int bottom) {
+        public Bounds translate(int x, int y) {
+            return new Bounds(left + x, top + y, right + x, bottom + y);
+        }
+
         public int width() {
             return Math.max(0, right - left);
         }

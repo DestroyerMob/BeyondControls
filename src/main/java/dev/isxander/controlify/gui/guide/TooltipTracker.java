@@ -5,24 +5,47 @@ import net.minecraft.client.gui.screens.Screen;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Tracks final tooltip rectangles for the screen frame currently being rendered. */
+/** Tracks final tooltip rectangles from both the current and most recently completed frame. */
 public final class TooltipTracker {
     private static Screen currentScreen;
-    private static final List<GuideRenderer.Bounds> bounds = new ArrayList<>();
+    private static int frameMouseX;
+    private static int frameMouseY;
+    private static final List<TrackedTooltip> currentBounds = new ArrayList<>();
+    private static final List<TrackedTooltip> previousBounds = new ArrayList<>();
 
     private TooltipTracker() {}
 
-    public static void beginFrame(Screen screen) {
+    public static void beginFrame(Screen screen, int mouseX, int mouseY) {
+        previousBounds.clear();
+        if (screen == currentScreen) {
+            previousBounds.addAll(currentBounds);
+        }
+        currentBounds.clear();
         currentScreen = screen;
-        bounds.clear();
+        frameMouseX = mouseX;
+        frameMouseY = mouseY;
     }
 
-    public static void record(Screen screen, int x, int y, int width, int height) {
+    public static void record(Screen screen, int mouseX, int mouseY,
+                              int x, int y, int width, int height) {
         if (screen == null || screen != currentScreen) return;
-        bounds.add(new GuideRenderer.Bounds(x - 4, y - 4, x + width + 4, y + height + 4));
+        currentBounds.add(new TrackedTooltip(
+                new GuideRenderer.Bounds(x - 4, y - 4, x + width + 4, y + height + 4),
+                mouseX,
+                mouseY
+        ));
     }
 
     public static List<GuideRenderer.Bounds> boundsFor(Screen screen) {
-        return screen == currentScreen ? List.copyOf(bounds) : List.of();
+        if (screen != currentScreen) return List.of();
+        List<GuideRenderer.Bounds> bounds = new ArrayList<>(currentBounds.size() + previousBounds.size());
+        currentBounds.stream().map(TrackedTooltip::bounds).forEach(bounds::add);
+        previousBounds.stream().map(tooltip -> tooltip.bounds().translate(
+                frameMouseX - tooltip.mouseX(),
+                frameMouseY - tooltip.mouseY()
+        )).forEach(bounds::add);
+        return List.copyOf(bounds);
     }
+
+    private record TrackedTooltip(GuideRenderer.Bounds bounds, int mouseX, int mouseY) {}
 }

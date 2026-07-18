@@ -17,7 +17,7 @@ public class ScreenTooltipTrackerMixin {
     )
     private void controlify$beginTooltipFrame(GuiGraphics graphics, int mouseX, int mouseY,
                                               float tickDelta, CallbackInfo ci) {
-        TooltipTracker.beginFrame((Screen) (Object) this);
+        TooltipTracker.beginFrame((Screen) (Object) this, mouseX, mouseY);
     }
 
     @Inject(
