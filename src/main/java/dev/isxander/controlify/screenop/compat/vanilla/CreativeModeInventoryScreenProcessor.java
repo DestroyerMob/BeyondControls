@@ -57,8 +57,8 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
     }
 
     private int bumperDirection(ControllerEntity controller) {
-        if (ControlifyBindings.GUI_PREV_TAB.on(controller).justPressed()) return -1;
-        if (ControlifyBindings.GUI_NEXT_TAB.on(controller).justPressed()) return 1;
+        if (ControlifyBindings.VMOUSE_PAGE_PREV.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.VMOUSE_PAGE_NEXT.on(controller).justPressed()) return 1;
         return 0;
     }
 
@@ -129,8 +129,8 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
     private void drawPageGlyphs(GuiGraphics graphics, ControllerEntity controller,
                                 AbstractContainerScreenAccessor container) {
         if (tabHelper.getPageCount() <= 1) return;
-        var previous = ControlifyBindings.GUI_PREV_TAB.on(controller);
-        var next = ControlifyBindings.GUI_NEXT_TAB.on(controller);
+        var previous = ControlifyBindings.VMOUSE_PAGE_PREV.on(controller);
+        var next = ControlifyBindings.VMOUSE_PAGE_NEXT.on(controller);
         int buttonY = container.getTopPos() - 50;
         int glyphY = buttonY + Math.max(0, (20 - minecraft.font.lineHeight) / 2);
         if (!previous.isUnbound()) {

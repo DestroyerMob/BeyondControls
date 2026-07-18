@@ -198,8 +198,8 @@ public final class RecipeViewerCompat {
     }
 
     private static int tabDirection(ControllerEntity controller) {
-        if (ControlifyBindings.GUI_PREV_TAB.on(controller).justPressed()) return -1;
-        if (ControlifyBindings.GUI_NEXT_TAB.on(controller).justPressed()) return 1;
+        if (ControlifyBindings.VMOUSE_PAGE_PREV.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.VMOUSE_PAGE_NEXT.on(controller).justPressed()) return 1;
         return 0;
     }
 
@@ -358,17 +358,17 @@ public final class RecipeViewerCompat {
         Object panel = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredPanel", mouseX, mouseY);
         if (panel == null || !booleanMethod(panel, "isVisible", false)
                 || !booleanMethod(panel, "hasMultiplePages", false)) return;
-        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB, field(panel, "pageLeft"), true);
-        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB, field(panel, "pageRight"), false);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_PREV, field(panel, "pageLeft"), true);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_NEXT, field(panel, "pageRight"), false);
     }
 
     private static void renderJeiOverlayHints(GuiGraphics graphics, ControllerEntity controller,
                                                int mouseX, int mouseY) throws ReflectiveOperationException {
         Object contents = hoveredJeiContents(mouseX, mouseY);
         if (contents == null) return;
-        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB,
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_PREV,
                 invoke(contents, "getBackButtonArea"), true);
-        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB,
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_NEXT,
                 invoke(contents, "getNextPageButtonArea"), false);
     }
 
@@ -376,17 +376,17 @@ public final class RecipeViewerCompat {
             throws ReflectiveOperationException {
         Object arrows = field(screen, "arrows");
         if (!(arrows instanceof List<?> list) || list.size() < 6) return;
-        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB, list.get(2), true);
-        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB, list.get(3), false);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_PREV, list.get(2), true);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_NEXT, list.get(3), false);
         drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP, list.get(4), true);
         drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_DOWN, list.get(5), false);
     }
 
     private static void renderJeiRecipeHints(Screen screen, GuiGraphics graphics, ControllerEntity controller)
             throws ReflectiveOperationException {
-        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB,
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_PREV,
                 field(screen, "previousRecipeCategory"), true);
-        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB,
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_NEXT,
                 field(screen, "nextRecipeCategory"), false);
         drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP,
                 field(screen, "previousPage"), true);
