@@ -526,7 +526,7 @@ public final class RecipeViewerCompat {
         }
         if (visibleHints == 0) return;
         int rowHeight = Minecraft.getInstance().font.lineHeight + 5;
-        int totalHeight = visibleHints * rowHeight - 2;
+        int totalHeight = visibleHints * rowHeight - 1;
         var position = GuideRenderer.placeAboveOrBelowTooltip(
                 graphics,
                 new GuideRenderer.Bounds(mouseX - 8, mouseY - 8, mouseX + 9, mouseY + 9),
@@ -535,7 +535,8 @@ public final class RecipeViewerCompat {
                 knownTooltip
         );
         int x = position.x();
-        int y = position.y();
+        // Labeled backgrounds extend two pixels above their text anchor.
+        int y = position.y() + 2;
         if (!leftClick.isUnbound()) {
             GuideRenderer.drawLabeledGlyph(
                     graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), recipes, x, y

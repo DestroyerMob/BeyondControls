@@ -98,11 +98,13 @@ public final class GuideRenderer {
 
     public static HintPosition placeAboveOrBelowTooltip(GuiGraphics graphics, Bounds target,
                                                         int hintWidth, int hintHeight, Bounds tooltip) {
-        int mouseX = target.left() + target.width() / 2;
-        int mouseY = target.top() + target.height() / 2;
-        tooltip = TooltipTracker.boundsForCursor(
-                Minecraft.getInstance().screen, mouseX, mouseY
-        ).orElse(tooltip);
+        if (tooltip == null) {
+            int mouseX = target.left() + target.width() / 2;
+            int mouseY = target.top() + target.height() / 2;
+            tooltip = TooltipTracker.boundsForCursor(
+                    Minecraft.getInstance().screen, mouseX, mouseY
+            ).orElse(null);
+        }
         if (tooltip == null) {
             return placeContextHint(graphics, target, hintWidth, hintHeight);
         }

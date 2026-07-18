@@ -107,17 +107,18 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         if (visibleHints == 0) return;
 
         int rowHeight = minecraft.font.lineHeight + 5;
-        int totalHeight = visibleHints * rowHeight - 2;
+        int totalHeight = visibleHints * rowHeight - 1;
         int slotX = accessor.getLeftPos() + slot.x;
         int slotY = accessor.getTopPos() + slot.y;
-        var position = GuideRenderer.placeContextHint(
+        var position = GuideRenderer.placeAboveOrBelowTooltip(
                 graphics,
                 new GuideRenderer.Bounds(slotX, slotY, slotX + 18, slotY + 18),
                 maxWidth,
                 totalHeight
         );
         int x = position.x();
-        int y = position.y();
+        // Labeled backgrounds extend two pixels above their text anchor.
+        int y = position.y() + 2;
 
         for (StackHint hint : hints) {
             int drawn = drawSlotHint(graphics, controller, hint, x, y);
