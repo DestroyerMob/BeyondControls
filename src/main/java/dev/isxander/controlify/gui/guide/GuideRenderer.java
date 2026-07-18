@@ -2,12 +2,10 @@ package dev.isxander.controlify.gui.guide;
 
 import com.google.common.collect.Lists;
 import dev.isxander.controlify.utils.render.Blit;
-import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.network.chat.Component;
 
 import java.util.function.Supplier;
 
@@ -33,17 +31,11 @@ public final class GuideRenderer {
         });
     }
 
-    public static Bounds belowContainer(AbstractContainerScreen<?> screen) {
-        var accessor = (AbstractContainerScreenAccessor) screen;
-        int bottom = accessor.getTopPos() + accessor.getImageHeight();
-        // Creative tabs protrude below the nominal container texture.
-        if (screen instanceof CreativeModeInventoryScreen) bottom += 28;
-        return new Bounds(
-                accessor.getLeftPos(),
-                Math.min(bottom, screen.height),
-                accessor.getLeftPos() + accessor.getImageWidth(),
-                screen.height
-        );
+    public static int drawGlyphBadge(GuiGraphics graphics, Font font, Component glyph, int x, int y) {
+        int width = font.width(glyph);
+        graphics.fill(x - 2, y - 2, x + width + 2, y + font.lineHeight + 1, 0xC0000000);
+        graphics.drawString(font, glyph, x, y, 0xFFFFFFFF, false);
+        return width + 5;
     }
 
     private static void renderLines(GuiGraphics graphics, PrecomputedLines lines, Font font, Bounds bounds, boolean bottomAligned, boolean rightAligned, boolean textContrast) {

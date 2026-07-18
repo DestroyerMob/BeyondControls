@@ -1,31 +1,25 @@
 package dev.isxander.controlify.screenop.compat.vanilla;
 
-import dev.isxander.controlify.InputMode;
 import dev.isxander.controlify.api.ControlifyApi;
-import dev.isxander.controlify.api.guide.ContainerCtx;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.controller.haptic.HapticEffects;
 import dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat;
-import dev.isxander.controlify.gui.guide.GuideDomains;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
-import dev.isxander.controlify.mixins.feature.screenop.ScreenAccessor;
 import dev.isxander.controlify.screenop.ScreenProcessor;
 import dev.isxander.controlify.virtualmouse.VirtualMouseBehaviour;
 import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
-import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<?>> extends ScreenProcessor<T> {
-
-    private final GuideRenderer.Renderable guideRenderable;
 
     private final Supplier<Slot> hoveredSlot;
     private final ClickSlotFunction clickSlotFunction;
@@ -42,37 +36,13 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         this.hoveredSlot = hoveredSlot;
         this.clickSlotFunction = clickSlotFunction;
         this.doItemSlotActions = doItemSlotActions;
-        this.guideRenderable = new GuideRenderer.Renderable(
-                GuideDomains.CONTAINER,
-                minecraft,
-                false,
-                false,
-                () -> RecipeViewerCompat.containerGuideBounds(screen)
-        );
     }
 
     @Override
     protected void handleScreenVMouse(ControllerEntity controller, VirtualMouseHandler vmouse) {
-        var accessor = (AbstractContainerScreenAccessor) screen;
-
         if (RecipeViewerCompat.handleContainerPaging(screen, controller, vmouse)) {
             playClackSound();
         }
-
-        var ctx = new ContainerCtx(
-                hoveredSlot.get(),
-                screen.getMenu().getCarried(),
-                accessor.invokeHasClickedOutside(
-                        vmouse.getCurrentX(1f),
-                        vmouse.getCurrentY(1f),
-                        accessor.getLeftPos(),
-                        accessor.getTopPos()
-                        /*? if <1.21.9 >>*//*,0*/
-                ),
-                controller,
-                controller.settings().generic.guide.verbosity
-        );
-        GuideDomains.CONTAINER.updateGuides(ctx, minecraft.font);
 
         Slot hoveredSlot = this.hoveredSlot.get();
         if (hoveredSlot != null) {
@@ -114,27 +84,44 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
     }
 
     @Override
-    public void onWidgetRebuild() {
-        if (ControlifyApi.get().currentInputMode().isController()) {
-            setRenderGuide(true);
+    protected void render(ControllerEntity controller, GuiGraphics graphics, float tickDelta,
+                          Optional<VirtualMouseHandler> vmouse) {
+        if (!controller.settings().generic.guide.showScreenGuides) return;
+        Slot slot = hoveredSlot.get();
+        if (slot == null) return;
+
+        var accessor = (AbstractContainerScreenAccessor) screen;
+        int totalWidth = glyphWidth(controller, ControlifyBindings.INV_SELECT);
+        if (slot.hasItem()) {
+            totalWidth += glyphWidth(controller, ControlifyBindings.INV_TAKE_HALF);
+            totalWidth += glyphWidth(controller, ControlifyBindings.INV_QUICK_MOVE);
+        }
+        int x = accessor.getLeftPos() + slot.x + (18 - totalWidth) / 2;
+        x = Math.max(2, Math.min(x, graphics.guiWidth() - totalWidth - 2));
+        int belowSlot = accessor.getTopPos() + slot.y + 20;
+        int y = belowSlot + minecraft.font.lineHeight + 2 <= graphics.guiHeight()
+                ? belowSlot
+                : accessor.getTopPos() + slot.y - minecraft.font.lineHeight - 3;
+
+        x += drawSlotGlyph(graphics, controller, ControlifyBindings.INV_SELECT, x, y);
+        if (slot.hasItem()) {
+            x += drawSlotGlyph(graphics, controller, ControlifyBindings.INV_TAKE_HALF, x, y);
+            drawSlotGlyph(graphics, controller, ControlifyBindings.INV_QUICK_MOVE, x, y);
         }
     }
 
-    @Override
-    public void onInputModeChanged(InputMode mode) {
-        setRenderGuide(mode.isController());
+    private int drawSlotGlyph(GuiGraphics graphics, ControllerEntity controller,
+                              dev.isxander.controlify.api.bind.InputBindingSupplier supplier,
+                              int x, int y) {
+        var binding = supplier.on(controller);
+        if (binding.isUnbound()) return 0;
+        return GuideRenderer.drawGlyphBadge(graphics, minecraft.font, binding.inputGlyph(), x, y);
     }
 
-    private void setRenderGuide(boolean render) {
-        render &= ControlifyApi.get().getCurrentController().map(c -> c.settings().generic.guide.showScreenGuides).orElse(false);
-
-        List<Renderable> renderables = ((ScreenAccessor) screen).getRenderables();
-
-        if (render) {
-            renderables.add(guideRenderable);
-        } else if (this.guideRenderable != null) {
-            renderables.remove(this.guideRenderable);
-        }
+    private int glyphWidth(ControllerEntity controller,
+                           dev.isxander.controlify.api.bind.InputBindingSupplier supplier) {
+        var binding = supplier.on(controller);
+        return binding.isUnbound() ? 0 : minecraft.font.width(binding.inputGlyph()) + 5;
     }
 
     public void onHoveredSlotChanged(Slot newSlot, Slot oldSlot) {

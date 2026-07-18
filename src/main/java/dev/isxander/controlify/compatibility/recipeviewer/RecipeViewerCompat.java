@@ -11,11 +11,8 @@ import dev.isxander.controlify.platform.main.PlatformMainUtil;
 import dev.isxander.controlify.screenop.ScreenProcessorProvider;
 import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.network.chat.Component;
 import org.joml.Vector2i;
 
 import java.lang.reflect.Field;
@@ -34,7 +31,6 @@ public final class RecipeViewerCompat {
     private static final String EMI_SCREEN_MANAGER = "dev.emi.emi.screen.EmiScreenManager";
     private static boolean jeiLoaded;
     private static boolean emiLoaded;
-    private static final int EDGE_PADDING = 4;
 
     private RecipeViewerCompat() {
     }
@@ -48,8 +44,8 @@ public final class RecipeViewerCompat {
     }
 
     public static void init() {
-        // Register late so this legend renders after JEI/EMI's item overlays.
-        PlatformClientUtil.registerPostScreenRender(RecipeViewerCompat::renderControllerGuide);
+        // Register late so contextual glyphs render after JEI/EMI and their tooltips.
+        PlatformClientUtil.registerPostScreenRender(RecipeViewerCompat::renderContextualHints);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -116,14 +112,6 @@ public final class RecipeViewerCompat {
         } catch (Throwable ignored) {
             return false;
         }
-    }
-
-    public static GuideRenderer.Bounds containerGuideBounds(AbstractContainerScreen<?> screen) {
-        GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(screen);
-        if (!hasVisibleOverlay()) return bounds;
-        ViewerArea area = viewerArea(screen, screen.width, screen.height);
-        int reservedBottom = Math.max(bounds.top(), Math.min(bounds.bottom(), area.bottom()) - 31);
-        return new GuideRenderer.Bounds(bounds.left(), bounds.top(), bounds.right(), reservedBottom);
     }
 
     public static boolean handleRecipeNavigation(Screen screen, ControllerEntity controller) {
@@ -247,164 +235,144 @@ public final class RecipeViewerCompat {
         }
     }
 
-    private static void renderControllerGuide(Screen screen, GuiGraphics graphics,
+    private static void renderContextualHints(Screen screen, GuiGraphics graphics,
                                               int mouseX, int mouseY, float tickDelta) {
         if (!Controlify.instance().currentInputMode().isController()) return;
         Optional<ControllerEntity> controller = Controlify.instance().getCurrentController();
         if (controller.isEmpty() || !controller.get().settings().generic.guide.showScreenGuides) return;
-        if (!isRecipeViewerScreen(screen)
-                && (!(screen instanceof AbstractContainerScreen<?>) || !hasVisibleOverlay())) return;
+        ControllerEntity activeController = controller.get();
+        boolean hoveredViewerItem = false;
 
-        Component primary = Component.translatable(
-                "controlify.compat.recipe_viewer.guide.primary",
-                glyph(ControlifyBindings.VMOUSE_SNAP_UP, controller.get()),
-                glyph(ControlifyBindings.VMOUSE_LCLICK, controller.get()),
-                glyph(ControlifyBindings.VMOUSE_RCLICK, controller.get())
-        );
-        Component secondary = isRecipeViewerScreen(screen)
-                ? Component.translatable(
-                        "controlify.compat.recipe_viewer.guide.recipe_secondary",
-                        glyph(ControlifyBindings.GUI_PREV_TAB, controller.get()),
-                        glyph(ControlifyBindings.GUI_NEXT_TAB, controller.get()),
-                        glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
-                        glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get()),
-                        glyph(ControlifyBindings.GUI_BACK, controller.get())
-                )
-                : Component.translatable(
-                        "controlify.compat.recipe_viewer.guide.sidebar_secondary",
-                        glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
-                        glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
-                        glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get()),
-                        glyph(ControlifyBindings.GUI_BACK, controller.get())
-                );
-        if (screen instanceof AbstractContainerScreen<?> containerScreen) {
-            GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(containerScreen);
-            ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
-            int bottom = Math.max(bounds.top() + 28, Math.min(bounds.bottom(), area.bottom()));
-            drawGuideLine(graphics, primary, bounds.left(), bounds.right(), bottom - 27);
-            drawGuideLine(graphics, secondary, bounds.left(), bounds.right(), bottom - 15);
-        } else {
-            ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
-            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 27);
-            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 15);
+        if (emiLoaded) {
+            try {
+                if (isScreen(screen, EMI_RECIPE_SCREEN)) {
+                    renderEmiRecipeHints(screen, graphics, activeController);
+                } else {
+                    renderEmiSidebarHints(graphics, activeController, mouseX, mouseY);
+                }
+                hoveredViewerItem = hasHoveredEmiStack(mouseX, mouseY);
+            } catch (Throwable ignored) {
+            }
         }
-    }
-
-    private static Component glyph(InputBindingSupplier supplier, ControllerEntity controller) {
-        return supplier.on(controller).inputGlyph();
-    }
-
-    private static void drawGuideLine(GuiGraphics graphics, Component line, int left, int right, int y) {
-        Font font = Minecraft.getInstance().font;
-        int width = font.width(line);
-        int x = left + Math.max(0, (right - left - width) / 2);
-        graphics.fill(x - 3, y - 2, x + width + 3, y + font.lineHeight + 2, 0xC0000000);
-        graphics.drawString(font, line, x, y, 0xFFFFFFFF, false);
-    }
-
-    private static ViewerArea viewerArea(Screen screen, int width, int height) {
-        MutableViewerArea area = new MutableViewerArea(width, height);
         if (jeiLoaded) {
             try {
-                Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
-                reserveJeiOverlay(invoke(runtime, "getIngredientListOverlay"), area);
-                reserveJeiOverlay(invoke(runtime, "getBookmarkOverlay"), area);
-            } catch (Throwable ignored) {
-            }
-        }
-        if (emiLoaded) {
-            boolean emiVisible = false;
-            try {
-                Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
-                if (panels instanceof Collection<?> collection) {
-                    for (Object panel : collection) {
-                        try {
-                            if (booleanMethod(panel, "isVisible", false)) {
-                                emiVisible = true;
-                                reserveEdge(readRect(invoke(panel, "getBounds")), area);
-                            }
-                        } catch (Throwable ignored) {
-                        }
-                    }
+                if (isScreen(screen, JEI_RECIPE_SCREEN)) {
+                    renderJeiRecipeHints(screen, graphics, activeController);
+                    hoveredViewerItem |= valuePresent(invoke(
+                            screen, "getIngredientUnderMouse", (double) mouseX, (double) mouseY
+                    ));
+                } else if (hasHoveredJeiIngredient()) {
+                    hoveredViewerItem = true;
                 }
             } catch (Throwable ignored) {
             }
-            // Keep this separate: one incompatible panel must not prevent the search bar being reserved.
-            boolean searchReserved = false;
-            try {
-                Object search = staticField(EMI_SCREEN_MANAGER, "search");
-                Rect searchBounds = readRect(search);
-                if (searchBounds != null && searchBounds.width() > 0 && searchBounds.height() > 0) {
-                    reserveEdge(searchBounds, area);
-                    searchReserved = true;
-                }
-            } catch (Throwable ignored) {
-            }
-            if (emiVisible && !searchReserved) {
-                area.bottom = Math.min(area.bottom, height - 52);
-            }
         }
-        return area.freeze();
+        if (hoveredViewerItem) {
+            renderItemActionGlyphs(graphics, activeController, mouseX, mouseY);
+        }
     }
 
-    private static void reserveJeiOverlay(Object overlay, MutableViewerArea area)
+    private static void renderEmiSidebarHints(GuiGraphics graphics, ControllerEntity controller,
+                                               int mouseX, int mouseY) throws ReflectiveOperationException {
+        Object panel = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredPanel", mouseX, mouseY);
+        if (panel == null || !booleanMethod(panel, "isVisible", false)) {
+            panel = invokeStatic(EMI_SCREEN_MANAGER, "getSearchPanel");
+        }
+        if (panel == null || !booleanMethod(panel, "isVisible", false)
+                || !booleanMethod(panel, "hasMultiplePages", false)) return;
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP, field(panel, "pageLeft"), true);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_DOWN, field(panel, "pageRight"), false);
+    }
+
+    private static void renderEmiRecipeHints(Screen screen, GuiGraphics graphics, ControllerEntity controller)
             throws ReflectiveOperationException {
-        if (overlay == null || !booleanMethod(overlay, "isListDisplayed", false)) return;
-        Object contents = field(overlay, "contents");
-        if (contents != null) reserveEdge(readRect(invoke(contents, "getBackgroundArea")), area);
-        try {
-            Object search = field(overlay, "searchField");
-            reserveEdge(readRect(search), area);
-        } catch (NoSuchFieldException ignored) {
+        Object arrows = field(screen, "arrows");
+        if (!(arrows instanceof List<?> list) || list.size() < 6) return;
+        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB, list.get(2), true);
+        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB, list.get(3), false);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP, list.get(4), true);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_DOWN, list.get(5), false);
+    }
+
+    private static void renderJeiRecipeHints(Screen screen, GuiGraphics graphics, ControllerEntity controller)
+            throws ReflectiveOperationException {
+        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB,
+                field(screen, "previousRecipeCategory"), true);
+        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB,
+                field(screen, "nextRecipeCategory"), false);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP,
+                field(screen, "previousPage"), true);
+        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_DOWN,
+                field(screen, "nextPage"), false);
+    }
+
+    private static boolean hasHoveredEmiStack(int mouseX, int mouseY) throws ReflectiveOperationException {
+        Object interaction = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredStack", mouseX, mouseY, true);
+        return interaction != null && !booleanMethod(interaction, "isEmpty", true);
+    }
+
+    private static boolean hasHoveredJeiIngredient() throws ReflectiveOperationException {
+        Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
+        return valuePresent(invoke(invoke(runtime, "getIngredientListOverlay"), "getIngredientUnderMouse"))
+                || valuePresent(invoke(invoke(runtime, "getBookmarkOverlay"), "getIngredientUnderMouse"));
+    }
+
+    private static boolean valuePresent(Object value) {
+        if (value instanceof Optional<?> optional) return optional.isPresent();
+        if (value instanceof Stream<?> stream) {
+            try (stream) {
+                return stream.findAny().isPresent();
+            }
+        }
+        return value != null;
+    }
+
+    private static void renderItemActionGlyphs(GuiGraphics graphics, ControllerEntity controller,
+                                               int mouseX, int mouseY) {
+        var leftClick = ControlifyBindings.VMOUSE_LCLICK.on(controller);
+        var rightClick = ControlifyBindings.VMOUSE_RCLICK.on(controller);
+        int totalWidth = 0;
+        if (!leftClick.isUnbound()) totalWidth += Minecraft.getInstance().font.width(leftClick.inputGlyph()) + 5;
+        if (!rightClick.isUnbound()) totalWidth += Minecraft.getInstance().font.width(rightClick.inputGlyph()) + 5;
+        int x = Math.max(3, mouseX - totalWidth - 8);
+        int y = Math.max(3, mouseY - Minecraft.getInstance().font.lineHeight / 2);
+        if (!leftClick.isUnbound()) {
+            x += GuideRenderer.drawGlyphBadge(
+                    graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), x, y
+            );
+        }
+        if (!rightClick.isUnbound()) {
+            GuideRenderer.drawGlyphBadge(graphics, Minecraft.getInstance().font, rightClick.inputGlyph(), x, y);
         }
     }
 
-    private static void reserveEdge(Rect rect, MutableViewerArea area) {
-        if (rect == null || rect.width() <= 0 || rect.height() <= 0) return;
-        int leftDistance = Math.max(0, rect.x());
-        int rightDistance = Math.max(0, area.screenWidth - rect.right());
-        int topDistance = Math.max(0, rect.y());
-        int bottomDistance = Math.max(0, area.screenHeight - rect.bottom());
-        int nearest = Math.min(Math.min(leftDistance, rightDistance), Math.min(topDistance, bottomDistance));
+    private static void drawBeside(GuiGraphics graphics, ControllerEntity controller,
+                                   InputBindingSupplier supplier, Object targetObject, boolean leftSide)
+            throws ReflectiveOperationException {
+        if (targetObject == null || !widgetVisible(targetObject)) return;
+        Rect target = readRect(targetObject);
+        if (target == null || target.width() <= 0 || target.height() <= 0) return;
+        var binding = supplier.on(controller);
+        if (binding.isUnbound()) return;
+        var glyph = binding.inputGlyph();
+        int glyphWidth = Minecraft.getInstance().font.width(glyph);
+        int x = leftSide ? target.x() - glyphWidth - 4 : target.right() + 4;
+        x = Math.max(2, Math.min(x, graphics.guiWidth() - glyphWidth - 2));
+        int y = target.y() + Math.max(0, (target.height() - Minecraft.getInstance().font.lineHeight) / 2);
+        GuideRenderer.drawGlyphBadge(graphics, Minecraft.getInstance().font, glyph, x, y);
+    }
 
-        if (nearest == bottomDistance) {
-            area.bottom = Math.min(area.bottom, rect.y() - EDGE_PADDING);
-        } else if (nearest == topDistance) {
-            area.top = Math.max(area.top, rect.bottom() + EDGE_PADDING);
-        } else if (nearest == leftDistance) {
-            area.left = Math.max(area.left, rect.right() + EDGE_PADDING);
-        } else {
-            area.right = Math.min(area.right, rect.x() - EDGE_PADDING);
+    private static boolean widgetVisible(Object target) throws ReflectiveOperationException {
+        try {
+            Object value = field(target, "visible");
+            return !(value instanceof Boolean visible) || visible;
+        } catch (NoSuchFieldException ignored) {
+            return booleanMethod(target, "isVisible", true);
         }
     }
 
     private static boolean isRecipeViewerScreen(Screen screen) {
         return isScreen(screen, JEI_RECIPE_SCREEN) || isScreen(screen, EMI_RECIPE_SCREEN);
-    }
-
-    private static boolean hasVisibleOverlay() {
-        try {
-            if (jeiLoaded) {
-                Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
-                if (booleanMethod(invoke(runtime, "getIngredientListOverlay"), "isListDisplayed", false)
-                        || booleanMethod(invoke(runtime, "getBookmarkOverlay"), "isListDisplayed", false)) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            if (emiLoaded) {
-                Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
-                if (panels instanceof Collection<?> collection) {
-                    for (Object panel : collection) {
-                        if (booleanMethod(panel, "isVisible", false)) return true;
-                    }
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-        return false;
     }
 
     private static boolean isScreen(Screen screen, String className) {
@@ -510,28 +478,4 @@ public final class RecipeViewerCompat {
         int bottom() { return y + height; }
     }
 
-    private record ViewerArea(int left, int top, int right, int bottom) {
-        int width() { return Math.max(0, right - left); }
-    }
-
-    private static final class MutableViewerArea {
-        private final int screenWidth;
-        private final int screenHeight;
-        private int left;
-        private int top;
-        private int right;
-        private int bottom;
-
-        private MutableViewerArea(int width, int height) {
-            this.screenWidth = width;
-            this.screenHeight = height;
-            this.right = width;
-            this.bottom = height;
-        }
-
-        private ViewerArea freeze() {
-            if (right <= left || bottom <= top) return new ViewerArea(0, 0, screenWidth, screenHeight);
-            return new ViewerArea(left, top, right, bottom);
-        }
-    }
 }

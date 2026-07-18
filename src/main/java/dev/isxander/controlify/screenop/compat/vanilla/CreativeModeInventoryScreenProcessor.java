@@ -3,14 +3,19 @@ package dev.isxander.controlify.screenop.compat.vanilla;
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.gui.guide.GuideRenderer;
+import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
+import dev.isxander.controlify.mixins.feature.guide.screen.CreativeModeInventoryScreenAccessor;
 import dev.isxander.controlify.platform.client.CreativeTabHelper;
 import dev.isxander.controlify.platform.client.PlatformClientUtil;
 import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.CreativeModeTab;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -63,5 +68,42 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
         }
 
         super.handleScreenVMouse(controller, vmouse);
+    }
+
+    @Override
+    protected void render(ControllerEntity controller, GuiGraphics graphics, float tickDelta,
+                          Optional<VirtualMouseHandler> vmouse) {
+        super.render(controller, graphics, tickDelta, vmouse);
+        if (!controller.settings().generic.guide.showScreenGuides) return;
+
+        CreativeModeTab tab = tabHelper.getSelectedTab();
+        if (tab == null) return;
+        var container = (AbstractContainerScreenAccessor) screen;
+        var creative = (CreativeModeInventoryScreenAccessor) screen;
+        int tabX = container.getLeftPos() + creative.invokeGetTabX(tab);
+        int tabY = container.getTopPos()
+                + (tab.row() == CreativeModeTab.Row.TOP ? -28 : container.getImageHeight() - 4);
+
+        int glyphY = tab.row() == CreativeModeTab.Row.TOP
+                ? tabY - minecraft.font.lineHeight - 3
+                : tabY + 31;
+        drawTabGlyphs(graphics, controller, tabX, glyphY);
+    }
+
+    private void drawTabGlyphs(GuiGraphics graphics, ControllerEntity controller, int tabX, int y) {
+        var previous = ControlifyBindings.GUI_PREV_TAB.on(controller);
+        var next = ControlifyBindings.GUI_NEXT_TAB.on(controller);
+        int previousWidth = previous.isUnbound() ? 0 : minecraft.font.width(previous.inputGlyph()) + 5;
+        int nextWidth = next.isUnbound() ? 0 : minecraft.font.width(next.inputGlyph()) + 5;
+        int x = Math.max(2, Math.min(
+                tabX + (28 - previousWidth - nextWidth) / 2,
+                graphics.guiWidth() - previousWidth - nextWidth - 2
+        ));
+        if (!previous.isUnbound()) {
+            x += GuideRenderer.drawGlyphBadge(graphics, minecraft.font, previous.inputGlyph(), x, y);
+        }
+        if (!next.isUnbound()) {
+            GuideRenderer.drawGlyphBadge(graphics, minecraft.font, next.inputGlyph(), x, y);
+        }
     }
 }
