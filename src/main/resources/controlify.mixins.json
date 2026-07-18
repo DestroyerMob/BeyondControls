@@ -33,6 +33,8 @@
     "feature.guide.screen.AbstractContainerScreenAccessor",
     "feature.guide.screen.AbstractWidgetMixin",
     "feature.guide.screen.CreativeModeInventoryScreenAccessor",
+    "feature.guide.screen.GuiGraphicsTooltipTrackerMixin",
+    "feature.guide.screen.ScreenTooltipTrackerMixin",
     "feature.guide.screen.TabNavigationBarMixin",
     "feature.hdhaptics.SoundBufferAccessor",
     "feature.hdhaptics.SoundEngineAccessor",

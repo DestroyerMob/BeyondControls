@@ -3,6 +3,7 @@ package dev.isxander.controlify.screenop.compat.vanilla;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.compatibility.cherishedworlds.CherishedWorldsCompat;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.screenop.ScreenProcessor;
 import dev.isxander.controlify.mixins.feature.screenop.impl.outofgame.SelectWorldScreenAccessor;
 import net.minecraft.client.Minecraft;
@@ -30,8 +31,7 @@ public class SelectWorldScreenProcessor extends ScreenProcessor<SelectWorldScree
             int width = minecraft.font.width(glyph);
             int x = position.starX() - width - 4;
             int y = position.y();
-            graphics.fill(x - 2, y - 1, x + width + 2, y + minecraft.font.lineHeight, 0xB0000000);
-            graphics.drawString(minecraft.font, glyph, x, y, 0xFFFFFFFF, false);
+            GuideRenderer.drawGlyph(graphics, minecraft.font, glyph, x, y);
         });
     }
 

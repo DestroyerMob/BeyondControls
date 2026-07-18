@@ -7,6 +7,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public final class GuideRenderer {
@@ -52,6 +53,35 @@ public final class GuideRenderer {
         return width + 7;
     }
 
+    public static HintPosition placeContextHint(GuiGraphics graphics, Bounds target,
+                                                int hintWidth, int hintHeight) {
+        int gap = 7;
+        int centeredY = target.top() + (target.height() - hintHeight) / 2;
+        int centeredX = target.left() + (target.width() - hintWidth) / 2;
+        List<HintPosition> candidates = List.of(
+                new HintPosition(target.right() + gap, centeredY),
+                new HintPosition(target.left() - hintWidth - gap, centeredY),
+                new HintPosition(centeredX, target.bottom() + gap),
+                new HintPosition(centeredX, target.top() - hintHeight - gap)
+        );
+        List<Bounds> tooltips = TooltipTracker.boundsFor(Minecraft.getInstance().screen);
+
+        HintPosition best = null;
+        int bestOverlap = Integer.MAX_VALUE;
+        for (HintPosition candidate : candidates) {
+            HintPosition clamped = candidate.clamp(graphics.guiWidth(), graphics.guiHeight(), hintWidth, hintHeight);
+            Bounds placed = new Bounds(clamped.x(), clamped.y(), clamped.x() + hintWidth, clamped.y() + hintHeight);
+            int overlap = placed.overlapArea(target) * 1000
+                    + tooltips.stream().mapToInt(placed::overlapArea).sum();
+            if (overlap == 0) return clamped;
+            if (overlap < bestOverlap) {
+                best = clamped;
+                bestOverlap = overlap;
+            }
+        }
+        return best == null ? new HintPosition(2, 2) : best;
+    }
+
     private static void renderAtTop(GuiGraphics graphics, Runnable render) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 1000);
@@ -92,6 +122,28 @@ public final class GuideRenderer {
     }
 
     public record Bounds(int left, int top, int right, int bottom) {
+        public int width() {
+            return Math.max(0, right - left);
+        }
+
+        public int height() {
+            return Math.max(0, bottom - top);
+        }
+
+        public int overlapArea(Bounds other) {
+            int width = Math.max(0, Math.min(right, other.right) - Math.max(left, other.left));
+            int height = Math.max(0, Math.min(bottom, other.bottom) - Math.max(top, other.top));
+            return width * height;
+        }
+    }
+
+    public record HintPosition(int x, int y) {
+        private HintPosition clamp(int screenWidth, int screenHeight, int width, int height) {
+            return new HintPosition(
+                    Math.max(2, Math.min(x, screenWidth - width - 2)),
+                    Math.max(2, Math.min(y, screenHeight - height - 2))
+            );
+        }
     }
 
     public static class Renderable implements net.minecraft.client.gui.components.Renderable {

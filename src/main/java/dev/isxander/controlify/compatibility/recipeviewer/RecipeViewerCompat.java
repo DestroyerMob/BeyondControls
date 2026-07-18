@@ -6,6 +6,7 @@ import dev.isxander.controlify.api.vmousesnapping.SnapPoint;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
+import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
 import dev.isxander.controlify.platform.client.PlatformClientUtil;
 import dev.isxander.controlify.platform.main.PlatformMainUtil;
 import dev.isxander.controlify.screenop.ScreenProcessorProvider;
@@ -13,7 +14,9 @@ import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Vector2i;
 
 import java.lang.reflect.Field;
@@ -28,8 +31,12 @@ import java.util.stream.Stream;
 public final class RecipeViewerCompat {
     private static final String JEI_RECIPE_SCREEN = "mezz.jei.gui.recipes.RecipesGui";
     private static final String JEI_INTERNAL = "mezz.jei.common.Internal";
+    private static final String JEI_VANILLA_TYPES = "mezz.jei.api.constants.VanillaTypes";
+    private static final String JEI_RECIPE_ROLE = "mezz.jei.api.recipe.RecipeIngredientRole";
     private static final String EMI_RECIPE_SCREEN = "dev.emi.emi.screen.RecipeScreen";
     private static final String EMI_SCREEN_MANAGER = "dev.emi.emi.screen.EmiScreenManager";
+    private static final String EMI_API = "dev.emi.emi.api.EmiApi";
+    private static final String EMI_STACK = "dev.emi.emi.api.stack.EmiStack";
     private static boolean jeiLoaded;
     private static boolean emiLoaded;
 
@@ -113,6 +120,39 @@ public final class RecipeViewerCompat {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    public static boolean isStackViewerAvailable() {
+        return emiLoaded || jeiLoaded;
+    }
+
+    public static boolean openStackViewer(ItemStack stack, boolean uses) {
+        if (stack == null || stack.isEmpty()) return false;
+        if (emiLoaded) {
+            try {
+                Object emiStack = invokeStatic(EMI_STACK, "of", stack.copy());
+                invokeStatic(EMI_API, uses ? "displayUses" : "displayRecipes", emiStack);
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (jeiLoaded) {
+            try {
+                Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
+                Object ingredientManager = invoke(runtime, "getIngredientManager");
+                Object itemType = staticField(JEI_VANILLA_TYPES, "ITEM_STACK");
+                Object optionalTyped = invoke(ingredientManager, "createTypedIngredient", itemType, stack.copy());
+                if (!(optionalTyped instanceof Optional<?> optional) || optional.isEmpty()) return false;
+                Object helpers = invoke(runtime, "getJeiHelpers");
+                Object focusFactory = invoke(helpers, "getFocusFactory");
+                Object role = staticField(JEI_RECIPE_ROLE, uses ? "INPUT" : "OUTPUT");
+                Object focus = invoke(focusFactory, "createFocus", role, optional.get());
+                invoke(invoke(runtime, "getRecipesGui"), "show", focus);
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
     }
 
     public static boolean handleRecipeNavigation(Screen screen, ControllerEntity controller) {
@@ -268,9 +308,14 @@ public final class RecipeViewerCompat {
             } catch (Throwable ignored) {
             }
         }
-        if (hoveredViewerItem) {
+        if (hoveredViewerItem && !hasHoveredContainerSlot(screen)) {
             renderItemActionGlyphs(graphics, activeController, mouseX, mouseY);
         }
+    }
+
+    private static boolean hasHoveredContainerSlot(Screen screen) {
+        return screen instanceof AbstractContainerScreen<?>
+                && ((AbstractContainerScreenAccessor) screen).getHoveredSlot() != null;
     }
 
     private static void renderEmiSidebarHints(GuiGraphics graphics, ControllerEntity controller,
@@ -351,13 +396,14 @@ public final class RecipeViewerCompat {
         if (visibleHints == 0) return;
         int rowHeight = Minecraft.getInstance().font.lineHeight + 5;
         int totalHeight = visibleHints * rowHeight - 2;
-        int x = mouseX - maxWidth - 8;
-        if (x < 3) x = mouseX + 12;
-        x = Math.max(3, Math.min(x, graphics.guiWidth() - maxWidth - 3));
-        int y = Math.max(3, Math.min(
-                mouseY - totalHeight / 2,
-                graphics.guiHeight() - totalHeight - 3
-        ));
+        var position = GuideRenderer.placeContextHint(
+                graphics,
+                new GuideRenderer.Bounds(mouseX - 8, mouseY - 8, mouseX + 9, mouseY + 9),
+                maxWidth,
+                totalHeight
+        );
+        int x = position.x();
+        int y = position.y();
         if (!leftClick.isUnbound()) {
             GuideRenderer.drawLabeledGlyph(
                     graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), recipes, x, y
@@ -458,7 +504,7 @@ public final class RecipeViewerCompat {
             throws ReflectiveOperationException {
         Method found = null;
         for (Method candidate : type.getMethods()) {
-            if (candidate.getName().equals(method) && candidate.getParameterCount() == args.length) {
+            if (methodCompatible(candidate, method, args)) {
                 found = candidate;
                 break;
             }
@@ -466,7 +512,7 @@ public final class RecipeViewerCompat {
         if (found == null) {
             for (Class<?> cursor = type; cursor != null && found == null; cursor = cursor.getSuperclass()) {
                 for (Method candidate : cursor.getDeclaredMethods()) {
-                    if (candidate.getName().equals(method) && candidate.getParameterCount() == args.length) {
+                    if (methodCompatible(candidate, method, args)) {
                         found = candidate;
                         break;
                     }
@@ -476,6 +522,30 @@ public final class RecipeViewerCompat {
         if (found == null) throw new NoSuchMethodException(type.getName() + "." + method);
         found.setAccessible(true);
         return found.invoke(target, args);
+    }
+
+    private static boolean methodCompatible(Method candidate, String name, Object[] args) {
+        if (!candidate.getName().equals(name) || candidate.getParameterCount() != args.length) return false;
+        Class<?>[] parameters = candidate.getParameterTypes();
+        for (int i = 0; i < parameters.length; i++) {
+            if (args[i] == null) continue;
+            Class<?> parameter = wrapPrimitive(parameters[i]);
+            if (!parameter.isAssignableFrom(args[i].getClass())) return false;
+        }
+        return true;
+    }
+
+    private static Class<?> wrapPrimitive(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == double.class) return Double.class;
+        if (type == float.class) return Float.class;
+        if (type == boolean.class) return Boolean.class;
+        if (type == byte.class) return Byte.class;
+        if (type == short.class) return Short.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private static Object staticField(String className, String name) throws ReflectiveOperationException {
