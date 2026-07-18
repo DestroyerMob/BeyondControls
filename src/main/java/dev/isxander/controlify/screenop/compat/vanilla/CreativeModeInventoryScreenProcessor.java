@@ -100,10 +100,10 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
                 graphics.guiWidth() - previousWidth - nextWidth - 2
         ));
         if (!previous.isUnbound()) {
-            x += GuideRenderer.drawGlyphBadge(graphics, minecraft.font, previous.inputGlyph(), x, y);
+            x += GuideRenderer.drawGlyph(graphics, minecraft.font, previous.inputGlyph(), x, y);
         }
         if (!next.isUnbound()) {
-            GuideRenderer.drawGlyphBadge(graphics, minecraft.font, next.inputGlyph(), x, y);
+            GuideRenderer.drawGlyph(graphics, minecraft.font, next.inputGlyph(), x, y);
         }
     }
 }

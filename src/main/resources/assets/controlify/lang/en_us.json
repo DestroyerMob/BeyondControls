@@ -3,6 +3,8 @@
 
   "controlify.toast.favorite_world.title": "World Favorites",
   "controlify.toast.favorite_world.description": "Toggle the selected world's favorite state",
+  "controlify.compat.recipe_viewer.action.recipes": "Recipes",
+  "controlify.compat.recipe_viewer.action.uses": "Uses",
 
   "controlify.gui.carousel.title": "Controllers",
   "controlify.gui.carousel.no_controllers": "No controllers connected.",

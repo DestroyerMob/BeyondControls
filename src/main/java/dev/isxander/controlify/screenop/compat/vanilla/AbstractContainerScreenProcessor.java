@@ -1,6 +1,7 @@
 package dev.isxander.controlify.screenop.compat.vanilla;
 
 import dev.isxander.controlify.api.ControlifyApi;
+import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.controller.haptic.HapticEffects;
@@ -12,9 +13,13 @@ import dev.isxander.controlify.virtualmouse.VirtualMouseBehaviour;
 import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -90,39 +95,87 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         Slot slot = hoveredSlot.get();
         if (slot == null) return;
 
+        List<StackHint> hints = stackHints(slot);
+        if (hints.isEmpty()) return;
+
         var accessor = (AbstractContainerScreenAccessor) screen;
-        int totalWidth = glyphWidth(controller, ControlifyBindings.INV_SELECT);
-        if (slot.hasItem()) {
-            totalWidth += glyphWidth(controller, ControlifyBindings.INV_TAKE_HALF);
-            totalWidth += glyphWidth(controller, ControlifyBindings.INV_QUICK_MOVE);
+        int maxWidth = 0;
+        int visibleHints = 0;
+        for (StackHint hint : hints) {
+            var binding = hint.binding().on(controller);
+            if (binding.isUnbound()) continue;
+            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
+                    minecraft.font, binding.inputGlyph(), hint.label()
+            ));
+            visibleHints++;
         }
-        int x = accessor.getLeftPos() + slot.x + (18 - totalWidth) / 2;
-        x = Math.max(2, Math.min(x, graphics.guiWidth() - totalWidth - 2));
-        int belowSlot = accessor.getTopPos() + slot.y + 20;
-        int y = belowSlot + minecraft.font.lineHeight + 2 <= graphics.guiHeight()
-                ? belowSlot
-                : accessor.getTopPos() + slot.y - minecraft.font.lineHeight - 3;
+        if (visibleHints == 0) return;
 
-        x += drawSlotGlyph(graphics, controller, ControlifyBindings.INV_SELECT, x, y);
-        if (slot.hasItem()) {
-            x += drawSlotGlyph(graphics, controller, ControlifyBindings.INV_TAKE_HALF, x, y);
-            drawSlotGlyph(graphics, controller, ControlifyBindings.INV_QUICK_MOVE, x, y);
+        int slotX = accessor.getLeftPos() + slot.x;
+        int slotY = accessor.getTopPos() + slot.y;
+        int x = slotX - maxWidth - 5;
+        if (x < 2) x = slotX + 23;
+        x = Math.max(2, Math.min(x, graphics.guiWidth() - maxWidth - 2));
+        int rowHeight = minecraft.font.lineHeight + 5;
+        int totalHeight = visibleHints * rowHeight - 2;
+        int y = Math.max(2, Math.min(
+                slotY + (18 - totalHeight) / 2,
+                graphics.guiHeight() - totalHeight - 2
+        ));
+
+        for (StackHint hint : hints) {
+            int drawn = drawSlotHint(graphics, controller, hint, x, y);
+            if (drawn > 0) y += rowHeight;
         }
     }
 
-    private int drawSlotGlyph(GuiGraphics graphics, ControllerEntity controller,
-                              dev.isxander.controlify.api.bind.InputBindingSupplier supplier,
-                              int x, int y) {
-        var binding = supplier.on(controller);
+    private List<StackHint> stackHints(Slot slot) {
+        List<StackHint> hints = new ArrayList<>(3);
+        ItemStack carried = screen.getMenu().getCarried();
+        if (carried.isEmpty()) {
+            if (!slot.hasItem()) return hints;
+            hints.add(new StackHint(
+                    ControlifyBindings.INV_SELECT,
+                    Component.translatable("controlify.guide.container.take")
+            ));
+            if (slot.getItem().getCount() > 1) {
+                hints.add(new StackHint(
+                        ControlifyBindings.INV_TAKE_HALF,
+                        Component.translatable("controlify.guide.container.take_half")
+                ));
+            }
+            hints.add(new StackHint(
+                    ControlifyBindings.INV_QUICK_MOVE,
+                    Component.translatable("controlify.guide.container.quick_move")
+            ));
+            return hints;
+        }
+
+        if (!slot.mayPlace(carried)) return hints;
+        boolean combines = !slot.hasItem() || ItemStack.isSameItemSameComponents(slot.getItem(), carried);
+        hints.add(new StackHint(
+                ControlifyBindings.INV_SELECT,
+                Component.translatable(combines
+                        ? "controlify.guide.container.place_all"
+                        : "controlify.guide.container.swap")
+        ));
+        hints.add(new StackHint(
+                ControlifyBindings.INV_TAKE_HALF,
+                Component.translatable("controlify.guide.container.take_one")
+        ));
+        return hints;
+    }
+
+    private int drawSlotHint(GuiGraphics graphics, ControllerEntity controller,
+                             StackHint hint, int x, int y) {
+        var binding = hint.binding().on(controller);
         if (binding.isUnbound()) return 0;
-        return GuideRenderer.drawGlyphBadge(graphics, minecraft.font, binding.inputGlyph(), x, y);
+        return GuideRenderer.drawLabeledGlyph(
+                graphics, minecraft.font, binding.inputGlyph(), hint.label(), x, y
+        );
     }
 
-    private int glyphWidth(ControllerEntity controller,
-                           dev.isxander.controlify.api.bind.InputBindingSupplier supplier) {
-        var binding = supplier.on(controller);
-        return binding.isUnbound() ? 0 : minecraft.font.width(binding.inputGlyph()) + 5;
-    }
+    private record StackHint(InputBindingSupplier binding, Component label) {}
 
     public void onHoveredSlotChanged(Slot newSlot, Slot oldSlot) {
         if (ControlifyApi.get().currentInputMode().isController()) {

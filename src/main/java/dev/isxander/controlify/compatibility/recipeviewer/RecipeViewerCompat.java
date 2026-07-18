@@ -13,6 +13,7 @@ import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import org.joml.Vector2i;
 
 import java.lang.reflect.Field;
@@ -331,18 +332,42 @@ public final class RecipeViewerCompat {
                                                int mouseX, int mouseY) {
         var leftClick = ControlifyBindings.VMOUSE_LCLICK.on(controller);
         var rightClick = ControlifyBindings.VMOUSE_RCLICK.on(controller);
-        int totalWidth = 0;
-        if (!leftClick.isUnbound()) totalWidth += Minecraft.getInstance().font.width(leftClick.inputGlyph()) + 5;
-        if (!rightClick.isUnbound()) totalWidth += Minecraft.getInstance().font.width(rightClick.inputGlyph()) + 5;
-        int x = Math.max(3, mouseX - totalWidth - 8);
-        int y = Math.max(3, mouseY - Minecraft.getInstance().font.lineHeight / 2);
+        Component recipes = Component.translatable("controlify.compat.recipe_viewer.action.recipes");
+        Component uses = Component.translatable("controlify.compat.recipe_viewer.action.uses");
+        int maxWidth = 0;
+        int visibleHints = 0;
         if (!leftClick.isUnbound()) {
-            x += GuideRenderer.drawGlyphBadge(
-                    graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), x, y
-            );
+            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
+                    Minecraft.getInstance().font, leftClick.inputGlyph(), recipes
+            ));
+            visibleHints++;
         }
         if (!rightClick.isUnbound()) {
-            GuideRenderer.drawGlyphBadge(graphics, Minecraft.getInstance().font, rightClick.inputGlyph(), x, y);
+            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
+                    Minecraft.getInstance().font, rightClick.inputGlyph(), uses
+            ));
+            visibleHints++;
+        }
+        if (visibleHints == 0) return;
+        int rowHeight = Minecraft.getInstance().font.lineHeight + 5;
+        int totalHeight = visibleHints * rowHeight - 2;
+        int x = mouseX - maxWidth - 8;
+        if (x < 3) x = mouseX + 12;
+        x = Math.max(3, Math.min(x, graphics.guiWidth() - maxWidth - 3));
+        int y = Math.max(3, Math.min(
+                mouseY - totalHeight / 2,
+                graphics.guiHeight() - totalHeight - 3
+        ));
+        if (!leftClick.isUnbound()) {
+            GuideRenderer.drawLabeledGlyph(
+                    graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), recipes, x, y
+            );
+            y += rowHeight;
+        }
+        if (!rightClick.isUnbound()) {
+            GuideRenderer.drawLabeledGlyph(
+                    graphics, Minecraft.getInstance().font, rightClick.inputGlyph(), uses, x, y
+            );
         }
     }
 
@@ -359,7 +384,7 @@ public final class RecipeViewerCompat {
         int x = leftSide ? target.x() - glyphWidth - 4 : target.right() + 4;
         x = Math.max(2, Math.min(x, graphics.guiWidth() - glyphWidth - 2));
         int y = target.y() + Math.max(0, (target.height() - Minecraft.getInstance().font.lineHeight) / 2);
-        GuideRenderer.drawGlyphBadge(graphics, Minecraft.getInstance().font, glyph, x, y);
+        GuideRenderer.drawGlyph(graphics, Minecraft.getInstance().font, glyph, x, y);
     }
 
     private static boolean widgetVisible(Object target) throws ReflectiveOperationException {

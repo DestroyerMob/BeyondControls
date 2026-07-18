@@ -31,11 +31,35 @@ public final class GuideRenderer {
         });
     }
 
-    public static int drawGlyphBadge(GuiGraphics graphics, Font font, Component glyph, int x, int y) {
+    public static int drawGlyph(GuiGraphics graphics, Font font, Component glyph, int x, int y) {
         int width = font.width(glyph);
-        graphics.fill(x - 2, y - 2, x + width + 2, y + font.lineHeight + 1, 0xC0000000);
-        graphics.drawString(font, glyph, x, y, 0xFFFFFFFF, false);
+        renderAtTop(graphics, () -> graphics.drawString(font, glyph, x, y, 0xFFFFFFFF, true));
         return width + 5;
+    }
+
+    public static int labeledGlyphWidth(Font font, Component glyph, Component label) {
+        return font.width(glyph) + 3 + font.width(label) + 7;
+    }
+
+    public static int drawLabeledGlyph(GuiGraphics graphics, Font font, Component glyph,
+                                       Component label, int x, int y) {
+        Component text = Component.empty().append(glyph).append(" ").append(label);
+        int width = font.width(text);
+        renderAtTop(graphics, () -> {
+            graphics.fill(x - 3, y - 2, x + width + 3, y + font.lineHeight + 2, 0xD0000000);
+            graphics.drawString(font, text, x, y, 0xFFFFFFFF, false);
+        });
+        return width + 7;
+    }
+
+    private static void renderAtTop(GuiGraphics graphics, Runnable render) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 1000);
+        try {
+            render.run();
+        } finally {
+            graphics.pose().popPose();
+        }
     }
 
     private static void renderLines(GuiGraphics graphics, PrecomputedLines lines, Font font, Bounds bounds, boolean bottomAligned, boolean rightAligned, boolean textContrast) {
