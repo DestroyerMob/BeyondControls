@@ -6,6 +6,7 @@ import dev.isxander.controlify.api.guide.ContainerCtx;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.controller.haptic.HapticEffects;
+import dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat;
 import dev.isxander.controlify.gui.guide.GuideDomains;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
@@ -53,6 +54,10 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
     @Override
     protected void handleScreenVMouse(ControllerEntity controller, VirtualMouseHandler vmouse) {
         var accessor = (AbstractContainerScreenAccessor) screen;
+
+        if (RecipeViewerCompat.handleContainerPaging(screen, controller, vmouse)) {
+            playClackSound();
+        }
 
         var ctx = new ContainerCtx(
                 hoveredSlot.get(),

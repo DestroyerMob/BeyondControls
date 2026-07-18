@@ -80,6 +80,87 @@ public final class RecipeViewerCompat {
         }
     }
 
+    public static boolean handleContainerPaging(Screen screen, ControllerEntity controller,
+                                                VirtualMouseHandler vmouse) {
+        if (!emiLoaded || isRecipeViewerScreen(screen)) return false;
+        int direction = pageDirection(controller);
+        if (direction == 0) return false;
+
+        try {
+            Object panel = invokeStatic(
+                    EMI_SCREEN_MANAGER,
+                    "getHoveredPanel",
+                    (int) vmouse.getCurrentX(1f),
+                    (int) vmouse.getCurrentY(1f)
+            );
+            if (panel == null || !booleanMethod(panel, "isVisible", false)) {
+                panel = invokeStatic(EMI_SCREEN_MANAGER, "getSearchPanel");
+            }
+            if (panel == null || !booleanMethod(panel, "isVisible", false)) {
+                Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
+                if (panels instanceof Collection<?> collection) {
+                    panel = collection.stream()
+                            .filter(candidate -> {
+                                try {
+                                    return booleanMethod(candidate, "isVisible", false);
+                                } catch (ReflectiveOperationException ignored) {
+                                    return false;
+                                }
+                            })
+                            .findFirst()
+                            .orElse(null);
+                }
+            }
+            if (panel == null) return false;
+            invoke(panel, "scroll", direction);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    public static boolean handleRecipeNavigation(Screen screen, ControllerEntity controller) {
+        int tabDirection = tabDirection(controller);
+        int pageDirection = pageDirection(controller);
+        if (tabDirection == 0 && pageDirection == 0) return false;
+
+        try {
+            if (isScreen(screen, EMI_RECIPE_SCREEN)) {
+                int tabPage = number(field(screen, "tabPage"));
+                int tab = number(field(screen, "tab"));
+                int page = number(field(screen, "page"));
+                if (tabDirection != 0) {
+                    invoke(screen, "setPage", tabPage, tab + tabDirection, 0);
+                } else {
+                    invoke(screen, "setPage", tabPage, tab, page + pageDirection);
+                }
+                return true;
+            }
+            if (isScreen(screen, JEI_RECIPE_SCREEN)) {
+                Object logic = field(screen, "logic");
+                if (tabDirection < 0) invoke(logic, "previousRecipeCategory");
+                else if (tabDirection > 0) invoke(logic, "nextRecipeCategory");
+                else if (pageDirection < 0) invoke(logic, "previousPage");
+                else invoke(logic, "nextPage");
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static int tabDirection(ControllerEntity controller) {
+        if (ControlifyBindings.GUI_PREV_TAB.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.GUI_NEXT_TAB.on(controller).justPressed()) return 1;
+        return 0;
+    }
+
+    private static int pageDirection(ControllerEntity controller) {
+        if (ControlifyBindings.VMOUSE_PAGE_UP.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.VMOUSE_PAGE_DOWN.on(controller).justPressed()) return 1;
+        return 0;
+    }
+
     private static void collectJeiOverlayPoints(Consumer<SnapPoint> consumer) throws ReflectiveOperationException {
         Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
         collectJeiOverlay(invoke(runtime, "getIngredientListOverlay"), consumer);
@@ -178,15 +259,26 @@ public final class RecipeViewerCompat {
                 glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
                 glyph(ControlifyBindings.GUI_BACK, controller.get())
         );
+        Component paging = Component.translatable(
+                isRecipeViewerScreen(screen)
+                        ? "controlify.compat.recipe_viewer.guide.recipe_paging"
+                        : "controlify.compat.recipe_viewer.guide.sidebar_paging",
+                glyph(ControlifyBindings.GUI_PREV_TAB, controller.get()),
+                glyph(ControlifyBindings.GUI_NEXT_TAB, controller.get()),
+                glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
+                glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get())
+        );
         if (screen instanceof AbstractContainerScreen<?> containerScreen) {
             GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(containerScreen);
             int y = bounds.top() + 5 + GuideRenderer.contentHeight(GuideDomains.CONTAINER) + 4;
             drawGuideLine(graphics, primary, bounds.left(), bounds.right(), y);
             drawGuideLine(graphics, secondary, bounds.left(), bounds.right(), y + 12);
+            drawGuideLine(graphics, paging, bounds.left(), bounds.right(), y + 24);
         } else {
             ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
-            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 27);
-            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 15);
+            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 39);
+            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 27);
+            drawGuideLine(graphics, paging, area.left(), area.right(), area.bottom() - 15);
         }
     }
 
