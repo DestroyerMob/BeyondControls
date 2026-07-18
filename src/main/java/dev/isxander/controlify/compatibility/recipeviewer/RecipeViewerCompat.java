@@ -5,7 +5,6 @@ import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.api.vmousesnapping.SnapPoint;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
-import dev.isxander.controlify.gui.guide.GuideDomains;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.platform.client.PlatformClientUtil;
 import dev.isxander.controlify.platform.main.PlatformMainUtil;
@@ -117,6 +116,14 @@ public final class RecipeViewerCompat {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    public static GuideRenderer.Bounds containerGuideBounds(AbstractContainerScreen<?> screen) {
+        GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(screen);
+        if (!hasVisibleOverlay()) return bounds;
+        ViewerArea area = viewerArea(screen, screen.width, screen.height);
+        int reservedBottom = Math.max(bounds.top(), Math.min(bounds.bottom(), area.bottom()) - 31);
+        return new GuideRenderer.Bounds(bounds.left(), bounds.top(), bounds.right(), reservedBottom);
     }
 
     public static boolean handleRecipeNavigation(Screen screen, ControllerEntity controller) {
@@ -254,31 +261,32 @@ public final class RecipeViewerCompat {
                 glyph(ControlifyBindings.VMOUSE_LCLICK, controller.get()),
                 glyph(ControlifyBindings.VMOUSE_RCLICK, controller.get())
         );
-        Component secondary = Component.translatable(
-                "controlify.compat.recipe_viewer.guide.secondary",
-                glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
-                glyph(ControlifyBindings.GUI_BACK, controller.get())
-        );
-        Component paging = Component.translatable(
-                isRecipeViewerScreen(screen)
-                        ? "controlify.compat.recipe_viewer.guide.recipe_paging"
-                        : "controlify.compat.recipe_viewer.guide.sidebar_paging",
-                glyph(ControlifyBindings.GUI_PREV_TAB, controller.get()),
-                glyph(ControlifyBindings.GUI_NEXT_TAB, controller.get()),
-                glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
-                glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get())
-        );
+        Component secondary = isRecipeViewerScreen(screen)
+                ? Component.translatable(
+                        "controlify.compat.recipe_viewer.guide.recipe_secondary",
+                        glyph(ControlifyBindings.GUI_PREV_TAB, controller.get()),
+                        glyph(ControlifyBindings.GUI_NEXT_TAB, controller.get()),
+                        glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
+                        glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get()),
+                        glyph(ControlifyBindings.GUI_BACK, controller.get())
+                )
+                : Component.translatable(
+                        "controlify.compat.recipe_viewer.guide.sidebar_secondary",
+                        glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
+                        glyph(ControlifyBindings.VMOUSE_PAGE_UP, controller.get()),
+                        glyph(ControlifyBindings.VMOUSE_PAGE_DOWN, controller.get()),
+                        glyph(ControlifyBindings.GUI_BACK, controller.get())
+                );
         if (screen instanceof AbstractContainerScreen<?> containerScreen) {
             GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(containerScreen);
-            int y = bounds.top() + 5 + GuideRenderer.contentHeight(GuideDomains.CONTAINER) + 4;
-            drawGuideLine(graphics, primary, bounds.left(), bounds.right(), y);
-            drawGuideLine(graphics, secondary, bounds.left(), bounds.right(), y + 12);
-            drawGuideLine(graphics, paging, bounds.left(), bounds.right(), y + 24);
+            ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
+            int bottom = Math.max(bounds.top() + 28, Math.min(bounds.bottom(), area.bottom()));
+            drawGuideLine(graphics, primary, bounds.left(), bounds.right(), bottom - 27);
+            drawGuideLine(graphics, secondary, bounds.left(), bounds.right(), bottom - 15);
         } else {
             ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
-            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 39);
-            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 27);
-            drawGuideLine(graphics, paging, area.left(), area.right(), area.bottom() - 15);
+            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 27);
+            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 15);
         }
     }
 
@@ -305,18 +313,35 @@ public final class RecipeViewerCompat {
             }
         }
         if (emiLoaded) {
+            boolean emiVisible = false;
             try {
                 Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
                 if (panels instanceof Collection<?> collection) {
                     for (Object panel : collection) {
-                        if (booleanMethod(panel, "isVisible", false)) {
-                            reserveEdge(readRect(invoke(panel, "getBounds")), area);
+                        try {
+                            if (booleanMethod(panel, "isVisible", false)) {
+                                emiVisible = true;
+                                reserveEdge(readRect(invoke(panel, "getBounds")), area);
+                            }
+                        } catch (Throwable ignored) {
                         }
                     }
                 }
-                Object search = staticField(EMI_SCREEN_MANAGER, "search");
-                reserveEdge(readRect(search), area);
             } catch (Throwable ignored) {
+            }
+            // Keep this separate: one incompatible panel must not prevent the search bar being reserved.
+            boolean searchReserved = false;
+            try {
+                Object search = staticField(EMI_SCREEN_MANAGER, "search");
+                Rect searchBounds = readRect(search);
+                if (searchBounds != null && searchBounds.width() > 0 && searchBounds.height() > 0) {
+                    reserveEdge(searchBounds, area);
+                    searchReserved = true;
+                }
+            } catch (Throwable ignored) {
+            }
+            if (emiVisible && !searchReserved) {
+                area.bottom = Math.min(area.bottom, height - 52);
             }
         }
         return area.freeze();

@@ -47,7 +47,7 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
                 minecraft,
                 false,
                 false,
-                () -> GuideRenderer.belowContainer(screen)
+                () -> RecipeViewerCompat.containerGuideBounds(screen)
         );
     }
 

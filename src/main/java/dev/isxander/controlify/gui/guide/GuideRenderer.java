@@ -33,15 +33,6 @@ public final class GuideRenderer {
         });
     }
 
-    public static int contentHeight(GuideDomain<?> domain) {
-        return Math.max(linesHeight(domain.leftGuides()), linesHeight(domain.rightGuides()));
-    }
-
-    private static int linesHeight(PrecomputedLines lines) {
-        if (lines.lines().isEmpty()) return 0;
-        return lines.height() + (lines.lines().size() - 1) * 2;
-    }
-
     public static Bounds belowContainer(AbstractContainerScreen<?> screen) {
         var accessor = (AbstractContainerScreenAccessor) screen;
         int bottom = accessor.getTopPos() + accessor.getImageHeight();
@@ -67,6 +58,7 @@ public final class GuideRenderer {
 
         var list = bottomAligned ? Lists.reverse(lines.lines()) : lines.lines();
         for (PrecomputedLines.PrecomputedLine line : list) {
+            if (!bottomAligned && y + line.height() > bounds.bottom() - safeAreaY) break;
             int lineX = rightAligned ? (x - line.width()) : x;
 
             if (textContrast) {

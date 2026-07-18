@@ -32,7 +32,7 @@
     "feature.guide.screen.AbstractButtonMixin",
     "feature.guide.screen.AbstractContainerScreenAccessor",
     "feature.guide.screen.AbstractWidgetMixin",
-    "feature.guide.screen.DefaultTooltipPositionerMixin",
+    "feature.guide.screen.GuiGraphicsTooltipMixin",
     "feature.guide.screen.TabNavigationBarMixin",
     "feature.hdhaptics.SoundBufferAccessor",
     "feature.hdhaptics.SoundEngineAccessor",
