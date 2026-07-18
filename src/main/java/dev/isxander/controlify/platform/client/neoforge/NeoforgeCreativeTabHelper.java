@@ -33,7 +33,7 @@ public class NeoforgeCreativeTabHelper implements CreativeTabHelper {
 
     @Override
     public List<CreativeModeTab> getTabsForPage(int page) {
-        return screen.getCurrentPage().getVisibleTabs();
+        return getPages().get(page).getVisibleTabs();
     }
 
     @Override
@@ -44,6 +44,11 @@ public class NeoforgeCreativeTabHelper implements CreativeTabHelper {
     @Override
     public void setSelectedTab(CreativeModeTab tab) {
         ((CreativeModeInventoryScreenAccessor) screen).invokeSelectTab(tab);
+    }
+
+    @Override
+    public boolean isTabOnTop(CreativeModeTab tab) {
+        return screen.getCurrentPage().isTop(tab);
     }
 
     private List<CreativeTabsScreenPage> getPages() {

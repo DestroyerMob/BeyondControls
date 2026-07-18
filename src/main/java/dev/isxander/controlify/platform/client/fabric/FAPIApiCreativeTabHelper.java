@@ -43,5 +43,10 @@ public class FAPIApiCreativeTabHelper implements CreativeTabHelper {
     public void setSelectedTab(CreativeModeTab tab) {
         screen.setSelectedItemGroup(tab);
     }
+
+    @Override
+    public boolean isTabOnTop(CreativeModeTab tab) {
+        return tab.row() == CreativeModeTab.Row.TOP;
+    }
 }
 //?}

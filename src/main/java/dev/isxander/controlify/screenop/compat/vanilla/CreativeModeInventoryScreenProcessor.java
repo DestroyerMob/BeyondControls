@@ -2,6 +2,7 @@ package dev.isxander.controlify.screenop.compat.vanilla;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.bindings.ControlifyBindings;
+import dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
@@ -36,38 +37,49 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
     @SuppressWarnings("UnreachableCode")
     @Override
     protected void handleScreenVMouse(ControllerEntity controller, VirtualMouseHandler vmouse) {
-        List<CreativeModeTab> tabs = tabHelper.getTabsForPage(tabHelper.getCurrentPage());
-        if (ControlifyBindings.GUI_NEXT_TAB.on(controller).justPressed()) {
-            int newIndex = tabs.indexOf(tabHelper.getSelectedTab()) + 1;
-            if (newIndex >= tabs.size()) {
-                newIndex = 0;
+        int mouseX = (int) vmouse.getCurrentX(1f);
+        int mouseY = (int) vmouse.getCurrentY(1f);
+        if (!RecipeViewerCompat.isHoveringItemPanel(screen, mouseX, mouseY)) {
+            int tabDirection = triggerDirection(controller);
+            if (tabDirection != 0) changeTab(tabDirection);
 
-                int newPage = tabHelper.getCurrentPage() + 1;
-                if (newPage >= tabHelper.getPageCount())
-                    newPage = 0;
-
-                tabHelper.setCurrentPage(newPage);
-                tabs = tabHelper.getTabsForPage(newPage);
-            }
-
-            tabHelper.setSelectedTab(tabs.get(newIndex));
-        }
-        if (ControlifyBindings.GUI_PREV_TAB.on(controller).justPressed()) {
-            int newIndex = tabs.indexOf(tabHelper.getSelectedTab()) - 1;
-            if (newIndex < 0) {
-                int newPage = tabHelper.getCurrentPage() - 1;
-                if (newPage < 0)
-                    newPage = tabHelper.getPageCount() - 1;
-
-                tabHelper.setCurrentPage(newPage);
-                tabs = tabHelper.getTabsForPage(newPage);
-                newIndex = tabs.size() - 1;
-            }
-
-            tabHelper.setSelectedTab(tabs.get(newIndex));
+            int pageDirection = bumperDirection(controller);
+            if (pageDirection != 0) changePage(pageDirection);
         }
 
         super.handleScreenVMouse(controller, vmouse);
+    }
+
+    private int triggerDirection(ControllerEntity controller) {
+        if (ControlifyBindings.VMOUSE_PAGE_UP.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.VMOUSE_PAGE_DOWN.on(controller).justPressed()) return 1;
+        return 0;
+    }
+
+    private int bumperDirection(ControllerEntity controller) {
+        if (ControlifyBindings.GUI_PREV_TAB.on(controller).justPressed()) return -1;
+        if (ControlifyBindings.GUI_NEXT_TAB.on(controller).justPressed()) return 1;
+        return 0;
+    }
+
+    private void changeTab(int direction) {
+        List<CreativeModeTab> tabs = tabHelper.getTabsForPage(tabHelper.getCurrentPage());
+        if (tabs.isEmpty()) return;
+        int currentIndex = Math.max(0, tabs.indexOf(tabHelper.getSelectedTab()));
+        tabHelper.setSelectedTab(tabs.get(Math.floorMod(currentIndex + direction, tabs.size())));
+    }
+
+    private void changePage(int direction) {
+        int pageCount = tabHelper.getPageCount();
+        if (pageCount <= 1) return;
+        List<CreativeModeTab> oldTabs = tabHelper.getTabsForPage(tabHelper.getCurrentPage());
+        int selectedIndex = Math.max(0, oldTabs.indexOf(tabHelper.getSelectedTab()));
+        int newPage = Math.floorMod(tabHelper.getCurrentPage() + direction, pageCount);
+        tabHelper.setCurrentPage(newPage);
+        List<CreativeModeTab> newTabs = tabHelper.getTabsForPage(newPage);
+        if (!newTabs.isEmpty()) {
+            tabHelper.setSelectedTab(newTabs.get(Math.min(selectedIndex, newTabs.size() - 1)));
+        }
     }
 
     @Override
@@ -75,24 +87,31 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
                           Optional<VirtualMouseHandler> vmouse) {
         super.render(controller, graphics, tickDelta, vmouse);
         if (!controller.settings().generic.guide.showScreenGuides) return;
+        if (vmouse.isPresent() && RecipeViewerCompat.isHoveringItemPanel(
+                screen,
+                (int) vmouse.get().getCurrentX(tickDelta),
+                (int) vmouse.get().getCurrentY(tickDelta)
+        )) return;
 
         CreativeModeTab tab = tabHelper.getSelectedTab();
         if (tab == null) return;
         var container = (AbstractContainerScreenAccessor) screen;
         var creative = (CreativeModeInventoryScreenAccessor) screen;
         int tabX = container.getLeftPos() + creative.invokeGetTabX(tab);
+        boolean topRow = tabHelper.isTabOnTop(tab);
         int tabY = container.getTopPos()
-                + (tab.row() == CreativeModeTab.Row.TOP ? -28 : container.getImageHeight() - 4);
+                + (topRow ? -28 : container.getImageHeight() - 4);
 
-        int glyphY = tab.row() == CreativeModeTab.Row.TOP
+        int glyphY = topRow
                 ? tabY - minecraft.font.lineHeight - 3
                 : tabY + 31;
         drawTabGlyphs(graphics, controller, tabX, glyphY);
+        drawPageGlyphs(graphics, controller, container);
     }
 
     private void drawTabGlyphs(GuiGraphics graphics, ControllerEntity controller, int tabX, int y) {
-        var previous = ControlifyBindings.GUI_PREV_TAB.on(controller);
-        var next = ControlifyBindings.GUI_NEXT_TAB.on(controller);
+        var previous = ControlifyBindings.VMOUSE_PAGE_UP.on(controller);
+        var next = ControlifyBindings.VMOUSE_PAGE_DOWN.on(controller);
         int previousWidth = previous.isUnbound() ? 0 : minecraft.font.width(previous.inputGlyph()) + 5;
         int nextWidth = next.isUnbound() ? 0 : minecraft.font.width(next.inputGlyph()) + 5;
         int x = Math.max(2, Math.min(
@@ -104,6 +123,30 @@ public class CreativeModeInventoryScreenProcessor extends AbstractContainerScree
         }
         if (!next.isUnbound()) {
             GuideRenderer.drawGlyph(graphics, minecraft.font, next.inputGlyph(), x, y);
+        }
+    }
+
+    private void drawPageGlyphs(GuiGraphics graphics, ControllerEntity controller,
+                                AbstractContainerScreenAccessor container) {
+        if (tabHelper.getPageCount() <= 1) return;
+        var previous = ControlifyBindings.GUI_PREV_TAB.on(controller);
+        var next = ControlifyBindings.GUI_NEXT_TAB.on(controller);
+        int buttonY = container.getTopPos() - 50;
+        int glyphY = buttonY + Math.max(0, (20 - minecraft.font.lineHeight) / 2);
+        if (!previous.isUnbound()) {
+            int width = minecraft.font.width(previous.inputGlyph());
+            GuideRenderer.drawGlyph(
+                    graphics, minecraft.font, previous.inputGlyph(),
+                    Math.max(2, container.getLeftPos() - width - 4), glyphY
+            );
+        }
+        if (!next.isUnbound()) {
+            GuideRenderer.drawGlyph(
+                    graphics, minecraft.font, next.inputGlyph(),
+                    Math.min(graphics.guiWidth() - minecraft.font.width(next.inputGlyph()) - 2,
+                            container.getLeftPos() + container.getImageWidth() + 4),
+                    glyphY
+            );
         }
     }
 }

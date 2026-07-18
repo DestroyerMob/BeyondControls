@@ -85,41 +85,52 @@ public final class RecipeViewerCompat {
 
     public static boolean handleContainerPaging(Screen screen, ControllerEntity controller,
                                                 VirtualMouseHandler vmouse) {
-        if (!emiLoaded || isRecipeViewerScreen(screen)) return false;
-        int direction = pageDirection(controller);
+        if (isRecipeViewerScreen(screen)) return false;
+        int direction = tabDirection(controller);
         if (direction == 0) return false;
+        int mouseX = (int) vmouse.getCurrentX(1f);
+        int mouseY = (int) vmouse.getCurrentY(1f);
 
-        try {
-            Object panel = invokeStatic(
-                    EMI_SCREEN_MANAGER,
-                    "getHoveredPanel",
-                    (int) vmouse.getCurrentX(1f),
-                    (int) vmouse.getCurrentY(1f)
-            );
-            if (panel == null || !booleanMethod(panel, "isVisible", false)) {
-                panel = invokeStatic(EMI_SCREEN_MANAGER, "getSearchPanel");
-            }
-            if (panel == null || !booleanMethod(panel, "isVisible", false)) {
-                Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
-                if (panels instanceof Collection<?> collection) {
-                    panel = collection.stream()
-                            .filter(candidate -> {
-                                try {
-                                    return booleanMethod(candidate, "isVisible", false);
-                                } catch (ReflectiveOperationException ignored) {
-                                    return false;
-                                }
-                            })
-                            .findFirst()
-                            .orElse(null);
+        if (emiLoaded) {
+            try {
+                Object panel = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredPanel", mouseX, mouseY);
+                if (panel != null && booleanMethod(panel, "isVisible", false)) {
+                    invoke(panel, "scroll", direction);
+                    return true;
                 }
+            } catch (Throwable ignored) {
             }
-            if (panel == null) return false;
-            invoke(panel, "scroll", direction);
-            return true;
-        } catch (Throwable ignored) {
-            return false;
         }
+        if (jeiLoaded) {
+            try {
+                Object contents = hoveredJeiContents(mouseX, mouseY);
+                if (contents != null) {
+                    Object paged = invoke(contents, "getPageDelegate");
+                    Object changed = invoke(paged, direction < 0 ? "previousPage" : "nextPage");
+                    return !(changed instanceof Boolean result) || result;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    public static boolean isHoveringItemPanel(Screen screen, int mouseX, int mouseY) {
+        if (isRecipeViewerScreen(screen)) return false;
+        if (emiLoaded) {
+            try {
+                Object panel = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredPanel", mouseX, mouseY);
+                if (panel != null && booleanMethod(panel, "isVisible", false)) return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (jeiLoaded) {
+            try {
+                return hoveredJeiContents(mouseX, mouseY) != null;
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
     }
 
     public static boolean isStackViewerAvailable() {
@@ -297,6 +308,8 @@ public final class RecipeViewerCompat {
             try {
                 if (isScreen(screen, JEI_RECIPE_SCREEN)) {
                     renderJeiRecipeHints(screen, graphics, activeController);
+                } else {
+                    renderJeiOverlayHints(graphics, activeController, mouseX, mouseY);
                 }
             } catch (Throwable ignored) {
             }
@@ -337,13 +350,20 @@ public final class RecipeViewerCompat {
     private static void renderEmiSidebarHints(GuiGraphics graphics, ControllerEntity controller,
                                                int mouseX, int mouseY) throws ReflectiveOperationException {
         Object panel = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredPanel", mouseX, mouseY);
-        if (panel == null || !booleanMethod(panel, "isVisible", false)) {
-            panel = invokeStatic(EMI_SCREEN_MANAGER, "getSearchPanel");
-        }
         if (panel == null || !booleanMethod(panel, "isVisible", false)
                 || !booleanMethod(panel, "hasMultiplePages", false)) return;
-        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_UP, field(panel, "pageLeft"), true);
-        drawBeside(graphics, controller, ControlifyBindings.VMOUSE_PAGE_DOWN, field(panel, "pageRight"), false);
+        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB, field(panel, "pageLeft"), true);
+        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB, field(panel, "pageRight"), false);
+    }
+
+    private static void renderJeiOverlayHints(GuiGraphics graphics, ControllerEntity controller,
+                                               int mouseX, int mouseY) throws ReflectiveOperationException {
+        Object contents = hoveredJeiContents(mouseX, mouseY);
+        if (contents == null) return;
+        drawBeside(graphics, controller, ControlifyBindings.GUI_PREV_TAB,
+                invoke(contents, "getBackButtonArea"), true);
+        drawBeside(graphics, controller, ControlifyBindings.GUI_NEXT_TAB,
+                invoke(contents, "getNextPageButtonArea"), false);
     }
 
     private static void renderEmiRecipeHints(Screen screen, GuiGraphics graphics, ControllerEntity controller)
@@ -377,6 +397,16 @@ public final class RecipeViewerCompat {
         Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
         return valuePresent(invoke(invoke(runtime, "getIngredientListOverlay"), "getIngredientUnderMouse"))
                 || valuePresent(invoke(invoke(runtime, "getBookmarkOverlay"), "getIngredientUnderMouse"));
+    }
+
+    private static Object hoveredJeiContents(int mouseX, int mouseY) throws ReflectiveOperationException {
+        Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
+        Object overlay = invoke(runtime, "getIngredientListOverlay");
+        if (overlay == null || !booleanMethod(overlay, "isListDisplayed", false)) return null;
+        Object contents = field(overlay, "contents");
+        return Boolean.TRUE.equals(invoke(contents, "isMouseOver", (double) mouseX, (double) mouseY))
+                ? contents
+                : null;
     }
 
     private static boolean valuePresent(Object value) {

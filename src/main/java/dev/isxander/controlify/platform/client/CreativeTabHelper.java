@@ -16,4 +16,6 @@ public interface CreativeTabHelper {
     CreativeModeTab getSelectedTab();
 
     void setSelectedTab(CreativeModeTab tab);
+
+    boolean isTabOnTop(CreativeModeTab tab);
 }
