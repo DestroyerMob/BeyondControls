@@ -15,15 +15,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Vector2i;
-import org.joml.Vector2ic;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -317,21 +315,14 @@ public final class RecipeViewerCompat {
             } catch (Throwable ignored) {
             }
         }
-        // EMI and JEI render their tooltips in the post-screen phase. Place the
-        // item actions here as well so the tracker sees this frame's exact tooltip.
-        renderTooltipAwareItemHints(screen, graphics, activeController, mouseX, mouseY);
     }
 
-    public static void renderTooltipAwareItemHints(Screen screen, GuiGraphics graphics,
-                                                   ControllerEntity controller, int mouseX, int mouseY) {
+    public static List<Component> controllerTooltipLines(Screen screen, ControllerEntity controller,
+                                                         int mouseX, int mouseY) {
         boolean hoveredViewerItem = false;
-        GuideRenderer.Bounds knownTooltip = null;
         if (emiLoaded) {
             try {
                 hoveredViewerItem = hasHoveredEmiStack(mouseX, mouseY);
-                if (hoveredViewerItem) {
-                    knownTooltip = emiTooltipBounds(graphics, mouseX, mouseY);
-                }
             } catch (Throwable ignored) {
             }
         }
@@ -347,9 +338,14 @@ public final class RecipeViewerCompat {
             } catch (Throwable ignored) {
             }
         }
-        if (hoveredViewerItem && !hasHoveredContainerSlot(screen)) {
-            renderItemActionGlyphs(graphics, controller, mouseX, mouseY, knownTooltip);
-        }
+        if (!hoveredViewerItem || hasHoveredContainerSlot(screen)) return List.of();
+
+        List<Component> lines = new ArrayList<>(2);
+        addTooltipLine(lines, ControlifyBindings.VMOUSE_LCLICK, controller,
+                Component.translatable("controlify.compat.recipe_viewer.action.recipes"));
+        addTooltipLine(lines, ControlifyBindings.VMOUSE_RCLICK, controller,
+                Component.translatable("controlify.compat.recipe_viewer.action.uses"));
+        return List.copyOf(lines);
     }
 
     private static boolean hasHoveredContainerSlot(Screen screen) {
@@ -403,80 +399,6 @@ public final class RecipeViewerCompat {
         return interaction != null && !booleanMethod(interaction, "isEmpty", true);
     }
 
-    private static GuideRenderer.Bounds emiTooltipBounds(GuiGraphics graphics, int mouseX, int mouseY)
-            throws ReflectiveOperationException {
-        Object interaction = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredStack", mouseX, mouseY, true);
-        if (interaction == null || booleanMethod(interaction, "isEmpty", true)) return null;
-        Object tooltip = invoke(invoke(interaction, "getStack"), "getTooltip");
-        if (!(tooltip instanceof List<?> components) || components.isEmpty()) return null;
-
-        int wrapWidth = Math.max(
-                graphics.guiWidth() / 2 - 16,
-                components.stream()
-                        .filter(component -> !isTextTooltipComponent(component))
-                        .mapToInt(component -> tooltipComponentWidth(component))
-                        .max()
-                        .orElse(0)
-        );
-        int width = 0;
-        int height = components.size() == 1 ? -2 : 0;
-        for (Object component : components) {
-            int componentWidth = tooltipComponentWidth(component);
-            if (isTextTooltipComponent(component) && componentWidth > wrapWidth) {
-                try {
-                    Object value = invoke(component, "getText");
-                    if (value instanceof FormattedCharSequence sequence) {
-                        var text = Component.empty();
-                        sequence.accept((index, style, codePoint) -> {
-                            text.append(Component.literal(String.valueOf(Character.toChars(codePoint)))
-                                    .setStyle(style));
-                            return true;
-                        });
-                        List<FormattedCharSequence> lines = Minecraft.getInstance().font.split(text, wrapWidth);
-                        for (FormattedCharSequence line : lines) {
-                            width = Math.max(width, Minecraft.getInstance().font.width(line));
-                            height += tooltipComponentHeight(component);
-                        }
-                        continue;
-                    }
-                } catch (ReflectiveOperationException ignored) {
-                    // Keep the original component, matching EMI's own fallback.
-                }
-            }
-            width = Math.max(width, componentWidth);
-            height += tooltipComponentHeight(component);
-        }
-        if (width <= 0 || height <= 0) return null;
-
-        Vector2ic position = DefaultTooltipPositioner.INSTANCE.positionTooltip(
-                graphics.guiWidth(), graphics.guiHeight(), mouseX, Math.max(16, mouseY), width, height
-        );
-        return new GuideRenderer.Bounds(
-                position.x() - 4, position.y() - 4,
-                position.x() + width + 4, position.y() + height + 4
-        );
-    }
-
-    private static boolean isTextTooltipComponent(Object component) {
-        return component != null && component.getClass().getSimpleName().equals("ClientTextTooltip");
-    }
-
-    private static int tooltipComponentWidth(Object component) {
-        try {
-            return number(invoke(component, "getWidth", Minecraft.getInstance().font));
-        } catch (ReflectiveOperationException ignored) {
-            return 0;
-        }
-    }
-
-    private static int tooltipComponentHeight(Object component) throws ReflectiveOperationException {
-        try {
-            return number(invoke(component, "getHeight", Minecraft.getInstance().font));
-        } catch (ReflectiveOperationException ignored) {
-            return number(invoke(component, "getHeight"));
-        }
-    }
-
     private static boolean hasHoveredJeiIngredient() throws ReflectiveOperationException {
         Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
         return valuePresent(invoke(invoke(runtime, "getIngredientListOverlay"), "getIngredientUnderMouse"))
@@ -503,51 +425,14 @@ public final class RecipeViewerCompat {
         return value != null;
     }
 
-    private static void renderItemActionGlyphs(GuiGraphics graphics, ControllerEntity controller,
-                                               int mouseX, int mouseY,
-                                               GuideRenderer.Bounds knownTooltip) {
-        var leftClick = ControlifyBindings.VMOUSE_LCLICK.on(controller);
-        var rightClick = ControlifyBindings.VMOUSE_RCLICK.on(controller);
-        Component recipes = Component.translatable("controlify.compat.recipe_viewer.action.recipes");
-        Component uses = Component.translatable("controlify.compat.recipe_viewer.action.uses");
-        int maxWidth = 0;
-        int visibleHints = 0;
-        if (!leftClick.isUnbound()) {
-            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
-                    Minecraft.getInstance().font, leftClick.inputGlyph(), recipes
-            ));
-            visibleHints++;
-        }
-        if (!rightClick.isUnbound()) {
-            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
-                    Minecraft.getInstance().font, rightClick.inputGlyph(), uses
-            ));
-            visibleHints++;
-        }
-        if (visibleHints == 0) return;
-        int rowHeight = Minecraft.getInstance().font.lineHeight + 5;
-        int totalHeight = visibleHints * rowHeight - 1;
-        var position = GuideRenderer.placeAboveOrBelowTooltip(
-                graphics,
-                new GuideRenderer.Bounds(mouseX - 8, mouseY - 8, mouseX + 9, mouseY + 9),
-                maxWidth,
-                totalHeight,
-                knownTooltip
-        );
-        int x = position.x();
-        // Labeled backgrounds extend two pixels above their text anchor.
-        int y = position.y() + 2;
-        if (!leftClick.isUnbound()) {
-            GuideRenderer.drawLabeledGlyph(
-                    graphics, Minecraft.getInstance().font, leftClick.inputGlyph(), recipes, x, y
-            );
-            y += rowHeight;
-        }
-        if (!rightClick.isUnbound()) {
-            GuideRenderer.drawLabeledGlyph(
-                    graphics, Minecraft.getInstance().font, rightClick.inputGlyph(), uses, x, y
-            );
-        }
+    private static void addTooltipLine(List<Component> lines, InputBindingSupplier supplier,
+                                       ControllerEntity controller, Component label) {
+        var binding = supplier.on(controller);
+        if (binding.isUnbound()) return;
+        lines.add(Component.empty()
+                .append(binding.inputGlyph())
+                .append(Component.literal(" "))
+                .append(label));
     }
 
     private static void drawBeside(GuiGraphics graphics, ControllerEntity controller,

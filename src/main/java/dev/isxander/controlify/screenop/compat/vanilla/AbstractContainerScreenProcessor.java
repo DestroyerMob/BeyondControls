@@ -6,12 +6,9 @@ import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.controller.haptic.HapticEffects;
 import dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat;
-import dev.isxander.controlify.gui.guide.GuideRenderer;
-import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
 import dev.isxander.controlify.screenop.ScreenProcessor;
 import dev.isxander.controlify.virtualmouse.VirtualMouseBehaviour;
 import dev.isxander.controlify.virtualmouse.VirtualMouseHandler;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.ClickType;
@@ -85,45 +82,23 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         }
     }
 
-    public void renderTooltipAwareHints(ControllerEntity controller, GuiGraphics graphics) {
-        if (!controller.settings().generic.guide.showScreenGuides) return;
+    public List<Component> controllerTooltipLines(ControllerEntity controller) {
         Slot slot = hoveredSlot.get();
-        if (slot == null) return;
+        if (slot == null) return List.of();
 
         List<StackHint> hints = stackHints(slot);
-        if (hints.isEmpty()) return;
+        if (hints.isEmpty()) return List.of();
 
-        var accessor = (AbstractContainerScreenAccessor) screen;
-        int maxWidth = 0;
-        int visibleHints = 0;
+        List<Component> lines = new ArrayList<>(hints.size());
         for (StackHint hint : hints) {
             var binding = hint.binding().on(controller);
             if (binding.isUnbound()) continue;
-            maxWidth = Math.max(maxWidth, GuideRenderer.labeledGlyphWidth(
-                    minecraft.font, binding.inputGlyph(), hint.label()
-            ));
-            visibleHints++;
+            lines.add(Component.empty()
+                    .append(binding.inputGlyph())
+                    .append(Component.literal(" "))
+                    .append(hint.label()));
         }
-        if (visibleHints == 0) return;
-
-        int rowHeight = minecraft.font.lineHeight + 5;
-        int totalHeight = visibleHints * rowHeight - 1;
-        int slotX = accessor.getLeftPos() + slot.x;
-        int slotY = accessor.getTopPos() + slot.y;
-        var position = GuideRenderer.placeAboveOrBelowTooltip(
-                graphics,
-                new GuideRenderer.Bounds(slotX, slotY, slotX + 18, slotY + 18),
-                maxWidth,
-                totalHeight
-        );
-        int x = position.x();
-        // Labeled backgrounds extend two pixels above their text anchor.
-        int y = position.y() + 2;
-
-        for (StackHint hint : hints) {
-            int drawn = drawSlotHint(graphics, controller, hint, x, y);
-            if (drawn > 0) y += rowHeight;
-        }
+        return List.copyOf(lines);
     }
 
     private List<StackHint> stackHints(Slot slot) {
@@ -204,15 +179,6 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         return enabled
                 ? Component.translatable("controlify.guide.tap_hold", tapAction, holdAction)
                 : tapAction;
-    }
-
-    private int drawSlotHint(GuiGraphics graphics, ControllerEntity controller,
-                             StackHint hint, int x, int y) {
-        var binding = hint.binding().on(controller);
-        if (binding.isUnbound()) return 0;
-        return GuideRenderer.drawLabeledGlyph(
-                graphics, minecraft.font, binding.inputGlyph(), hint.label(), x, y
-        );
     }
 
     private record StackHint(InputBindingSupplier binding, Component label) {}
