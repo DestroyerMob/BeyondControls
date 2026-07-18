@@ -3,6 +3,8 @@ package dev.isxander.controlify.controller.input;
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.bindings.ControlifyBindApiImpl;
 import dev.isxander.controlify.api.bind.InputBinding;
+import dev.isxander.controlify.api.bind.InputBindingActivationContext;
+import dev.isxander.controlify.bindings.InputBindingImpl;
 import dev.isxander.controlify.config.settings.device.DeviceSettings;
 import dev.isxander.controlify.config.settings.profile.InputSettings;
 import dev.isxander.controlify.controller.*;
@@ -10,6 +12,7 @@ import dev.isxander.controlify.controller.impl.ECSComponentImpl;
 import dev.isxander.controlify.controller.input.mapping.ControllerMapping;
 import dev.isxander.controlify.utils.CUtil;
 import net.minecraft.resources.Identifier;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -84,9 +87,37 @@ public class InputComponent extends ECSComponentImpl {
         this.stateNow = state;
         this.updateDeadzoneView();
 
-        for (InputBinding binding : this.inputBindings.values()) {
-            binding.pushState(this.deadzoneStateNow);
+        InputBindingActivationContext activationContext = new InputBindingActivationContext(
+                Minecraft.getInstance(), controller, this.deadzoneStateNow
+        );
+        List<InputBindingImpl> bindings = this.inputBindings.values().stream()
+                .map(InputBindingImpl.class::cast)
+                .toList();
+        Map<InputBindingImpl, Boolean> applicable = new IdentityHashMap<>();
+        Map<InputBindingImpl, Boolean> pressed = new IdentityHashMap<>();
+        float threshold = settings().buttonActivationThreshold;
+
+        for (InputBindingImpl binding : bindings) {
+            boolean isApplicable = binding.isApplicable(activationContext);
+            applicable.put(binding, isApplicable);
+            pressed.put(binding, isApplicable && binding.boundInput().state(this.deadzoneStateNow) >= threshold);
         }
+
+        for (InputBindingImpl binding : bindings) {
+            boolean suppressed = !applicable.get(binding);
+            if (!suppressed && pressed.get(binding)) {
+                suppressed = bindings.stream().anyMatch(other -> other != binding
+                        && pressed.get(other)
+                        && other.priority() > binding.priority()
+                        && sharesPhysicalInput(binding, other));
+            }
+            binding.pushState(this.deadzoneStateNow, suppressed);
+        }
+    }
+
+    private static boolean sharesPhysicalInput(InputBinding first, InputBinding second) {
+        Set<Identifier> firstInputs = new HashSet<>(first.boundInput().getRelevantInputs());
+        return second.boundInput().getRelevantInputs().stream().anyMatch(firstInputs::contains);
     }
 
     public @Nullable InputBinding getBinding(Identifier id) {

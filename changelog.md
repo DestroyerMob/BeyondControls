@@ -9,3 +9,5 @@ This version has the following targets:
 - Keep the `controlify` mod ID for compatibility while giving fork builds distinct name and version metadata.
 - Prevent accidental publishing to Controlify's upstream distribution projects.
 - Add an API hook for resolving radial-menu actions from live gameplay context.
+- Add prioritized contextual bindings and modifier-layer activation conditions.
+- Ensure suppressed key emulation releases cleanly when a higher-priority action wins.

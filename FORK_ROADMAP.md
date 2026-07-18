@@ -11,7 +11,7 @@
 
 - Allow a configured radial slot to resolve to a different action from live client context.
 - Supply pack-owned resolvers for crosshair targets, held items, screens, and player state.
-- Route controller-triggered mod actions through the same key-mapping semantics used by keyboard input.
+- Route controller-triggered mod actions through prioritized native bindings, with keyboard mappings retained as fallbacks.
 - Add automated fallback tests so a resolver can never erase the user's configured action accidentally.
 
 ## 3. Screen integration

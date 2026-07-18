@@ -2,6 +2,7 @@ package dev.isxander.controlify.bindings;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.InputBinding;
+import dev.isxander.controlify.api.bind.InputBindingActivationContext;
 import dev.isxander.controlify.bindings.input.Input;
 import dev.isxander.controlify.bindings.output.*;
 import dev.isxander.controlify.controller.input.ControllerStateView;
@@ -13,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class InputBindingImpl implements InputBinding {
@@ -26,6 +28,8 @@ public class InputBindingImpl implements InputBinding {
     private final Supplier<Input> defaultBindSupplier;
     private final Set<BindContext> contexts;
     private final @Nullable Identifier radialIcon;
+    private final int priority;
+    private final Predicate<InputBindingActivationContext> activationCondition;
 
     private final @Nullable InputComponent inputComponent;
     private final Identifier controllerType;
@@ -58,7 +62,9 @@ public class InputBindingImpl implements InputBinding {
             Component category,
             Supplier<Input> defaultBindSupplier,
             Set<BindContext> contexts,
-            @Nullable Identifier radialIcon
+            @Nullable Identifier radialIcon,
+            int priority,
+            Predicate<InputBindingActivationContext> activationCondition
     ) {
         this.inputComponent = inputComponent;
         this.controllerType = controllerType;
@@ -71,6 +77,8 @@ public class InputBindingImpl implements InputBinding {
         this.defaultBindSupplier = defaultBindSupplier;
         this.contexts = contexts;
         this.radialIcon = radialIcon;
+        this.priority = priority;
+        this.activationCondition = activationCondition;
         this.borrowedAccesses = new HashSet<>();
 
         this.digitalOutputs = new HashMap<>();
@@ -148,12 +156,11 @@ public class InputBindingImpl implements InputBinding {
 
     @Override
     public void pushState(ControllerStateView state) {
-        if (!this.contexts.isEmpty()) {
-            Set<BindContext> thisTickContexts = Controlify.instance().thisTickBindContexts();
-            this.suppressed = this.contexts.stream().noneMatch(thisTickContexts::contains);
-        } else {
-            this.suppressed = false;
-        }
+        pushState(state, false);
+    }
+
+    public void pushState(ControllerStateView state, boolean suppressed) {
+        this.suppressed = suppressed;
 
         float analogue = this.boundInput().state(state);
 
@@ -171,6 +178,20 @@ public class InputBindingImpl implements InputBinding {
 
         this.stateHistory.push(analogue);
         borrowedAccesses.forEach(StateAccessImpl::onPush);
+    }
+
+    public boolean isApplicable(InputBindingActivationContext context) {
+        if (!this.contexts.isEmpty()) {
+            Set<BindContext> thisTickContexts = Controlify.instance().thisTickBindContexts();
+            if (this.contexts.stream().noneMatch(thisTickContexts::contains)) {
+                return false;
+            }
+        }
+        return activationCondition.test(context);
+    }
+
+    public int priority() {
+        return priority;
     }
 
     @Override

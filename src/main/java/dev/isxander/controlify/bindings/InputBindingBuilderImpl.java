@@ -2,6 +2,7 @@ package dev.isxander.controlify.bindings;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.InputBindingBuilder;
+import dev.isxander.controlify.api.bind.InputBindingActivationContext;
 import dev.isxander.controlify.bindings.defaults.DefaultBindProvider;
 import dev.isxander.controlify.bindings.input.EmptyInput;
 import dev.isxander.controlify.bindings.input.Input;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class InputBindingBuilderImpl implements InputBindingBuilder {
@@ -27,6 +29,8 @@ public class InputBindingBuilderImpl implements InputBindingBuilder {
     private @Nullable Input defaultInput;
     private final Set<BindContext> allowedContexts = new HashSet<>();
     private @Nullable Identifier radialCandidate;
+    private int priority;
+    private Predicate<InputBindingActivationContext> activationCondition = context -> true;
 
     private final Set<KeyMapping> keyCorrelations = new HashSet<>();
     private KeyMapping keyEmulation = null;
@@ -85,6 +89,20 @@ public class InputBindingBuilderImpl implements InputBindingBuilder {
 
         if (contexts != null)
             this.allowedContexts.addAll(List.of(contexts));
+        return this;
+    }
+
+    @Override
+    public InputBindingBuilder priority(int priority) {
+        checkLocked();
+        this.priority = priority;
+        return this;
+    }
+
+    @Override
+    public InputBindingBuilder activeWhen(@NotNull Predicate<InputBindingActivationContext> condition) {
+        checkLocked();
+        this.activationCondition = this.activationCondition.and(Objects.requireNonNull(condition, "condition"));
         return this;
     }
 
@@ -155,7 +173,9 @@ public class InputBindingBuilderImpl implements InputBindingBuilder {
                 category,
                 defaultSupplier,
                 allowedContexts,
-                radialCandidate
+                radialCandidate,
+                priority,
+                activationCondition
         );
     }
 

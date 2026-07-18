@@ -10,6 +10,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A builder for creating an {@link InputBinding}.
@@ -115,6 +116,25 @@ public interface InputBindingBuilder {
      * @return this builder
      */
     InputBindingBuilder allowedContexts(@NotNull BindContext @Nullable... contexts);
+
+    /**
+     * Sets the contextual conflict priority for this binding. When active bindings
+     * use the same physical input, the one with the greater priority receives it.
+     * Bindings at the same priority continue to coexist for compatibility.
+     *
+     * @param priority contextual priority; zero is the normal/default priority
+     * @return this builder
+     */
+    InputBindingBuilder priority(int priority);
+
+    /**
+     * Adds a live activation condition. Inactive bindings neither fire nor suppress
+     * lower-priority bindings. The context can inspect another binding as a modifier.
+     *
+     * @param condition condition evaluated against the current controller state
+     * @return this builder
+     */
+    InputBindingBuilder activeWhen(@NotNull Predicate<InputBindingActivationContext> condition);
 
     /**
      * Specifies an icon that can be used in the radial menu.

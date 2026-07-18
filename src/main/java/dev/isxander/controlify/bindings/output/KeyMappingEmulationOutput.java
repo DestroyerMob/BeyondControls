@@ -14,6 +14,7 @@ public class KeyMappingEmulationOutput implements DigitalOutput {
     private final ControllerEntity controller;
     private final StateAccess stateAccess;
     private final KeyMapping keyMapping;
+    private boolean emulating;
 
     public KeyMappingEmulationOutput(ControllerEntity controller, InputBinding binding, KeyMapping keyMapping, BooleanSupplier toggleCondition) {
         this.controller = controller;
@@ -32,19 +33,14 @@ public class KeyMappingEmulationOutput implements DigitalOutput {
 
     private void push() {
         boolean now = stateAccess.digital(0);
-        boolean prev = stateAccess.digital(1);
+        boolean shouldEmulate = !stateAccess.isSuppressed()
+                && ControlifyApi.get().getCurrentController().orElse(null) == controller
+                && Minecraft.getInstance().screen == null
+                && now;
 
-        if (ControlifyApi.get().getCurrentController().orElse(null) != controller)
-            return; // only emulate current controller
-
-        if (Minecraft.getInstance().screen != null)
-            return; // minecraft keybinds don't work in gui screens it conflicts
-
-        KeyMappingHandle handle = (KeyMappingHandle) keyMapping;
-        if (now && !prev) {
-            handle.controlify$setPressed(true);
-        } else if (prev && !now) {
-            handle.controlify$setPressed(false);
+        if (shouldEmulate != emulating) {
+            ((KeyMappingHandle) keyMapping).controlify$setPressed(shouldEmulate);
+            emulating = shouldEmulate;
         }
     }
 }
