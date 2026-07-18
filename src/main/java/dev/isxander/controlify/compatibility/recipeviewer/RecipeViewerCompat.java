@@ -17,6 +17,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Vector2i;
 import org.joml.Vector2ic;
@@ -409,17 +410,41 @@ public final class RecipeViewerCompat {
         Object tooltip = invoke(invoke(interaction, "getStack"), "getTooltip");
         if (!(tooltip instanceof List<?> components) || components.isEmpty()) return null;
 
+        int wrapWidth = Math.max(
+                graphics.guiWidth() / 2 - 16,
+                components.stream()
+                        .filter(component -> !isTextTooltipComponent(component))
+                        .mapToInt(component -> tooltipComponentWidth(component))
+                        .max()
+                        .orElse(0)
+        );
         int width = 0;
         int height = components.size() == 1 ? -2 : 0;
         for (Object component : components) {
-            width = Math.max(width, number(invoke(
-                    component, "getWidth", Minecraft.getInstance().font
-            )));
-            try {
-                height += number(invoke(component, "getHeight", Minecraft.getInstance().font));
-            } catch (ReflectiveOperationException ignored) {
-                height += number(invoke(component, "getHeight"));
+            int componentWidth = tooltipComponentWidth(component);
+            if (isTextTooltipComponent(component) && componentWidth > wrapWidth) {
+                try {
+                    Object value = invoke(component, "getText");
+                    if (value instanceof FormattedCharSequence sequence) {
+                        var text = Component.empty();
+                        sequence.accept((index, style, codePoint) -> {
+                            text.append(Component.literal(String.valueOf(Character.toChars(codePoint)))
+                                    .setStyle(style));
+                            return true;
+                        });
+                        List<FormattedCharSequence> lines = Minecraft.getInstance().font.split(text, wrapWidth);
+                        for (FormattedCharSequence line : lines) {
+                            width = Math.max(width, Minecraft.getInstance().font.width(line));
+                            height += tooltipComponentHeight(component);
+                        }
+                        continue;
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                    // Keep the original component, matching EMI's own fallback.
+                }
             }
+            width = Math.max(width, componentWidth);
+            height += tooltipComponentHeight(component);
         }
         if (width <= 0 || height <= 0) return null;
 
@@ -430,6 +455,26 @@ public final class RecipeViewerCompat {
                 position.x() - 4, position.y() - 4,
                 position.x() + width + 4, position.y() + height + 4
         );
+    }
+
+    private static boolean isTextTooltipComponent(Object component) {
+        return component != null && component.getClass().getSimpleName().equals("ClientTextTooltip");
+    }
+
+    private static int tooltipComponentWidth(Object component) {
+        try {
+            return number(invoke(component, "getWidth", Minecraft.getInstance().font));
+        } catch (ReflectiveOperationException ignored) {
+            return 0;
+        }
+    }
+
+    private static int tooltipComponentHeight(Object component) throws ReflectiveOperationException {
+        try {
+            return number(invoke(component, "getHeight", Minecraft.getInstance().font));
+        } catch (ReflectiveOperationException ignored) {
+            return number(invoke(component, "getHeight"));
+        }
     }
 
     private static boolean hasHoveredJeiIngredient() throws ReflectiveOperationException {
