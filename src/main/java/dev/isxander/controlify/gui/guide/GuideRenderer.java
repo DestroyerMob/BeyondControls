@@ -88,20 +88,26 @@ public final class GuideRenderer {
 
     public static HintPosition placeAboveOrBelowTooltip(GuiGraphics graphics, Bounds target,
                                                         int hintWidth, int hintHeight) {
-        Bounds tooltip = TooltipTracker.boundsFor(Minecraft.getInstance().screen).stream()
-                .min((first, second) -> Integer.compare(
-                        first.distanceSquaredTo(target), second.distanceSquaredTo(target)
-                ))
-                .orElseGet(() -> {
-                    int centerY = target.top() + target.height() / 2;
-                    int estimatedHalfHeight = Math.min(64, Math.max(32, graphics.guiHeight() / 8));
-                    return new Bounds(
-                            target.left(), centerY - estimatedHalfHeight,
-                            target.right(), centerY + estimatedHalfHeight
-                    );
-                });
+        int mouseX = target.left() + target.width() / 2;
+        int mouseY = target.top() + target.height() / 2;
+        Bounds tooltip = TooltipTracker.boundsForCursor(
+                Minecraft.getInstance().screen, mouseX, mouseY
+        ).orElse(null);
+        return placeAboveOrBelowTooltip(graphics, target, hintWidth, hintHeight, tooltip);
+    }
 
-        int gap = 2;
+    public static HintPosition placeAboveOrBelowTooltip(GuiGraphics graphics, Bounds target,
+                                                        int hintWidth, int hintHeight, Bounds tooltip) {
+        int mouseX = target.left() + target.width() / 2;
+        int mouseY = target.top() + target.height() / 2;
+        tooltip = TooltipTracker.boundsForCursor(
+                Minecraft.getInstance().screen, mouseX, mouseY
+        ).orElse(tooltip);
+        if (tooltip == null) {
+            return placeContextHint(graphics, target, hintWidth, hintHeight);
+        }
+
+        int gap = 1;
         int topSpace = tooltip.top() - gap;
         int bottomSpace = graphics.guiHeight() - tooltip.bottom() - gap;
         boolean placeBelow = bottomSpace >= hintHeight && (topSpace < hintHeight || bottomSpace >= topSpace);

@@ -3,6 +3,7 @@ package dev.isxander.controlify.bindings;
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.InputBindingBuilder;
 import dev.isxander.controlify.api.bind.InputBindingActivationContext;
+import dev.isxander.controlify.api.bind.InputBindingLayer;
 import dev.isxander.controlify.bindings.defaults.DefaultBindProvider;
 import dev.isxander.controlify.bindings.input.EmptyInput;
 import dev.isxander.controlify.bindings.input.Input;
@@ -103,6 +104,15 @@ public class InputBindingBuilderImpl implements InputBindingBuilder {
     public InputBindingBuilder activeWhen(@NotNull Predicate<InputBindingActivationContext> condition) {
         checkLocked();
         this.activationCondition = this.activationCondition.and(Objects.requireNonNull(condition, "condition"));
+        return this;
+    }
+
+    @Override
+    public InputBindingBuilder layer(@NotNull InputBindingLayer layer) {
+        checkLocked();
+        Objects.requireNonNull(layer, "layer");
+        this.priority = layer.priority();
+        this.activationCondition = this.activationCondition.and(layer::isActive);
         return this;
     }
 

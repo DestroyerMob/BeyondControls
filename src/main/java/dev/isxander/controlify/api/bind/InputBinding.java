@@ -140,6 +140,17 @@ public interface InputBinding {
     Set<BindContext> contexts();
 
     /**
+     * Returns this binding's contextual layer priority. Active bindings with a
+     * greater priority own shared physical inputs over lower-priority bindings.
+     */
+    int priority();
+
+    /**
+     * Returns whether this binding's contexts and live layer condition are active.
+     */
+    boolean isApplicable(InputBindingActivationContext context);
+
+    /**
      * Returns the radial icon's ID.
      * If the binding does not have a radial icon, this will return an empty optional.
      * If empty, consider this binding as not being a radial candidate. It can never be added to the radial menu.

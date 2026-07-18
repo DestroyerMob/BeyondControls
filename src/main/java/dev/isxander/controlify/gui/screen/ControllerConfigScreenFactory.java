@@ -4,7 +4,6 @@ import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.guide.GuideVerbosity;
 import dev.isxander.controlify.bindings.BindContext;
 import dev.isxander.controlify.bindings.ControlifyBindApiImpl;
-import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.bindings.input.EmptyInput;
@@ -720,26 +719,17 @@ public class ControllerConfigScreenFactory {
             List<OptionBindPair> conflicting = all.stream()
                     .filter(pair -> pair.binding() != opt.binding())
                     .filter(pair -> {
-                        boolean intentionalWheelLayer = isActionWheelBinding(opt.binding())
-                                != isActionWheelBinding(pair.binding());
+                        boolean intentionalLayering = opt.binding().priority() != pair.binding().priority();
                         boolean contextsMatch = pair.binding().contexts()
                                 .stream()
                                 .anyMatch(ctxs::contains);
                         boolean bindMatches = pair.option().pendingValue().equals(opt.option().pendingValue());
                         boolean bindIsNotEmpty = !(pair.option().pendingValue() instanceof EmptyInput);
-                        return !intentionalWheelLayer && contextsMatch && bindMatches && bindIsNotEmpty;
+                        return !intentionalLayering && contextsMatch && bindMatches && bindIsNotEmpty;
                     }).toList();
 
             conflicting.forEach(conflict -> ((BindController) conflict.option().controller()).setConflicting(true));
         }
-    }
-
-    private static boolean isActionWheelBinding(InputBinding binding) {
-        var id = binding.id();
-        return id.equals(ControlifyBindings.RADIAL_MENU.bindId())
-                || id.equals(ControlifyBindings.RADIAL_MENU_UP.bindId())
-                || id.equals(ControlifyBindings.RADIAL_MENU_DOWN.bindId())
-                || id.equals(ControlifyBindings.RADIAL_MENU_LEFT.bindId());
     }
 
     private static Map<Component, List<InputBinding>> groupBindings(Collection<InputBinding> bindings) {

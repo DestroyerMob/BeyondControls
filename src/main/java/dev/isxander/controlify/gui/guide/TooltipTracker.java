@@ -4,6 +4,7 @@ import net.minecraft.client.gui.screens.Screen;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /** Tracks final tooltip rectangles from both the current and most recently completed frame. */
 public final class TooltipTracker {
@@ -55,6 +56,35 @@ public final class TooltipTracker {
                 frameMouseY - tooltip.mouseY()
         )).forEach(bounds::add);
         return List.copyOf(bounds);
+    }
+
+    /**
+     * Finds the tooltip rendered for this exact cursor position. Current-frame
+     * bounds always win; the previous frame is only used to bridge render-order
+     * differences in overlays which draw after the screen itself.
+     */
+    public static Optional<GuideRenderer.Bounds> boundsForCursor(Screen screen, int mouseX, int mouseY) {
+        if (screen != currentScreen) return Optional.empty();
+
+        Optional<GuideRenderer.Bounds> current = matchingBounds(currentBounds, mouseX, mouseY, false);
+        if (current.isPresent()) return current;
+        return matchingBounds(previousBounds, mouseX, mouseY, true);
+    }
+
+    private static Optional<GuideRenderer.Bounds> matchingBounds(List<TrackedTooltip> tooltips,
+                                                                  int mouseX, int mouseY,
+                                                                  boolean translate) {
+        for (int i = tooltips.size() - 1; i >= 0; i--) {
+            TrackedTooltip tooltip = tooltips.get(i);
+            // EMI clamps the Y passed to its positioner to at least 16.
+            boolean sameCursor = Math.abs(tooltip.mouseX() - mouseX) <= 2
+                    && Math.abs(tooltip.mouseY() - Math.max(16, mouseY)) <= 2;
+            if (!sameCursor) continue;
+            return Optional.of(translate
+                    ? tooltip.bounds().translate(mouseX - tooltip.mouseX(), mouseY - tooltip.mouseY())
+                    : tooltip.bounds());
+        }
+        return Optional.empty();
     }
 
     private record TrackedTooltip(GuideRenderer.Bounds bounds, int mouseX, int mouseY) {}

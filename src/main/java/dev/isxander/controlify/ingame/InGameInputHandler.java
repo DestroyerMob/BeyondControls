@@ -2,6 +2,7 @@ package dev.isxander.controlify.ingame;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.InputBinding;
+import dev.isxander.controlify.api.bind.InputBindingActivationContext;
 import dev.isxander.controlify.api.ingameinput.LookInputModifier;
 import dev.isxander.controlify.api.event.ControlifyEvents;
 import dev.isxander.controlify.bindings.ControlifyBindings;
@@ -32,6 +33,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
@@ -42,6 +44,8 @@ import org.joml.Vector2d;
 import org.joml.Vector2f;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
 
 public class InGameInputHandler {
     private static final int ACTION_WHEEL_HOLD_TICKS = 8;
@@ -289,19 +293,29 @@ public class InGameInputHandler {
 
     private boolean handleActionWheel(InputBinding binding, int wheel) {
         ActionWheelPressState state = actionWheelStates[wheel];
+        InputComponent input = controller.input().orElseThrow();
+        boolean physicallyDown = binding.boundInput().state(input.stateNow())
+                >= controller.settings().input.buttonActivationThreshold;
 
         if (state.opened) {
-            if (!binding.digitalNow()) {
+            if (!physicallyDown) {
                 state.reset();
             }
+            state.physicallyDownLastTick = physicallyDown;
             return false;
         }
 
-        if (binding.justPressed()) {
+        if (physicallyDown && !state.physicallyDownLastTick) {
+            state.ownsPress = binding.digitalNow();
             state.heldTicks = 0;
         }
 
-        if (binding.digitalNow()) {
+        if (physicallyDown && state.ownsPress && !binding.digitalNow()) {
+            // A higher-priority layer claimed this physical press. Ownership
+            // cannot return to the wheel until the D-pad is released and pressed again.
+            state.ownsPress = false;
+            state.heldTicks = 0;
+        } else if (physicallyDown && state.ownsPress) {
             state.heldTicks++;
             if (state.heldTicks >= ACTION_WHEEL_HOLD_TICKS) {
                 state.opened = true;
@@ -312,22 +326,42 @@ public class InGameInputHandler {
                         Component.translatable("controlify.radial_menu.configure_hint"),
                         null, null
                 ));
+                state.physicallyDownLastTick = true;
                 return true;
             }
-        } else if (binding.justReleased()) {
-            playTapBindings(binding);
+        } else if (!physicallyDown && state.physicallyDownLastTick) {
+            if (state.ownsPress) {
+                playTapBindings(binding);
+            }
             state.reset();
         }
 
+        state.physicallyDownLastTick = physicallyDown;
         return false;
     }
 
     private void playTapBindings(InputBinding wheelBinding) {
-        controller.input().orElseThrow().getAllBindings().stream()
+        InputComponent input = controller.input().orElseThrow();
+        InputBindingActivationContext context = new InputBindingActivationContext(
+                minecraft, controller, input.stateNow()
+        );
+        var candidates = input.getAllBindings().stream()
                 .filter(binding -> !isActionWheelBinding(binding))
-                .filter(binding -> binding.contexts().isEmpty() || binding.contexts().contains(BindContext.IN_GAME))
-                .filter(binding -> binding.boundInput().equals(wheelBinding.boundInput()))
+                .filter(binding -> sharesPhysicalInput(binding, wheelBinding))
+                .filter(binding -> binding.isApplicable(context))
+                .toList();
+        int winningPriority = candidates.stream()
+                .mapToInt(InputBinding::priority)
+                .max()
+                .orElse(Integer.MIN_VALUE);
+        candidates.stream()
+                .filter(binding -> binding.priority() == winningPriority)
                 .forEach(InputBinding::fakePress);
+    }
+
+    private static boolean sharesPhysicalInput(InputBinding first, InputBinding second) {
+        Set<Identifier> firstInputs = new HashSet<>(first.boundInput().getRelevantInputs());
+        return second.boundInput().getRelevantInputs().stream().anyMatch(firstInputs::contains);
     }
 
     private boolean isActionWheelBinding(InputBinding binding) {
@@ -340,10 +374,13 @@ public class InGameInputHandler {
     private static final class ActionWheelPressState {
         private int heldTicks;
         private boolean opened;
+        private boolean ownsPress;
+        private boolean physicallyDownLastTick;
 
         private void reset() {
             heldTicks = 0;
             opened = false;
+            ownsPress = false;
         }
     }
 

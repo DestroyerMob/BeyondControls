@@ -180,6 +180,7 @@ public class InputBindingImpl implements InputBinding {
         borrowedAccesses.forEach(StateAccessImpl::onPush);
     }
 
+    @Override
     public boolean isApplicable(InputBindingActivationContext context) {
         if (!this.contexts.isEmpty()) {
             Set<BindContext> thisTickContexts = Controlify.instance().thisTickBindContexts();
@@ -190,6 +191,7 @@ public class InputBindingImpl implements InputBinding {
         return activationCondition.test(context);
     }
 
+    @Override
     public int priority() {
         return priority;
     }

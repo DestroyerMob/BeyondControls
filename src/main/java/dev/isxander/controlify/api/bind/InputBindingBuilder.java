@@ -137,6 +137,15 @@ public interface InputBindingBuilder {
     InputBindingBuilder activeWhen(@NotNull Predicate<InputBindingActivationContext> condition);
 
     /**
+     * Places this binding in a reusable contextual layer. While the layer is
+     * active, its bindings block lower-priority bindings using the same input.
+     *
+     * @param layer contextual layer definition
+     * @return this builder
+     */
+    InputBindingBuilder layer(@NotNull InputBindingLayer layer);
+
+    /**
      * Specifies an icon that can be used in the radial menu.
      * Also allows for this binding to be selected in the radial menu editor screen.
      *

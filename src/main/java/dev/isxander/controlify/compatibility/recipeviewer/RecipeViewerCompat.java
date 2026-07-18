@@ -15,9 +15,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Vector2i;
+import org.joml.Vector2ic;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -322,9 +324,13 @@ public final class RecipeViewerCompat {
     public static void renderTooltipAwareItemHints(Screen screen, GuiGraphics graphics,
                                                    ControllerEntity controller, int mouseX, int mouseY) {
         boolean hoveredViewerItem = false;
+        GuideRenderer.Bounds knownTooltip = null;
         if (emiLoaded) {
             try {
                 hoveredViewerItem = hasHoveredEmiStack(mouseX, mouseY);
+                if (hoveredViewerItem) {
+                    knownTooltip = emiTooltipBounds(graphics, mouseX, mouseY);
+                }
             } catch (Throwable ignored) {
             }
         }
@@ -341,7 +347,7 @@ public final class RecipeViewerCompat {
             }
         }
         if (hoveredViewerItem && !hasHoveredContainerSlot(screen)) {
-            renderItemActionGlyphs(graphics, controller, mouseX, mouseY);
+            renderItemActionGlyphs(graphics, controller, mouseX, mouseY, knownTooltip);
         }
     }
 
@@ -396,6 +402,36 @@ public final class RecipeViewerCompat {
         return interaction != null && !booleanMethod(interaction, "isEmpty", true);
     }
 
+    private static GuideRenderer.Bounds emiTooltipBounds(GuiGraphics graphics, int mouseX, int mouseY)
+            throws ReflectiveOperationException {
+        Object interaction = invokeStatic(EMI_SCREEN_MANAGER, "getHoveredStack", mouseX, mouseY, true);
+        if (interaction == null || booleanMethod(interaction, "isEmpty", true)) return null;
+        Object tooltip = invoke(invoke(interaction, "getStack"), "getTooltip");
+        if (!(tooltip instanceof List<?> components) || components.isEmpty()) return null;
+
+        int width = 0;
+        int height = components.size() == 1 ? -2 : 0;
+        for (Object component : components) {
+            width = Math.max(width, number(invoke(
+                    component, "getWidth", Minecraft.getInstance().font
+            )));
+            try {
+                height += number(invoke(component, "getHeight", Minecraft.getInstance().font));
+            } catch (ReflectiveOperationException ignored) {
+                height += number(invoke(component, "getHeight"));
+            }
+        }
+        if (width <= 0 || height <= 0) return null;
+
+        Vector2ic position = DefaultTooltipPositioner.INSTANCE.positionTooltip(
+                graphics.guiWidth(), graphics.guiHeight(), mouseX, Math.max(16, mouseY), width, height
+        );
+        return new GuideRenderer.Bounds(
+                position.x() - 4, position.y() - 4,
+                position.x() + width + 4, position.y() + height + 4
+        );
+    }
+
     private static boolean hasHoveredJeiIngredient() throws ReflectiveOperationException {
         Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
         return valuePresent(invoke(invoke(runtime, "getIngredientListOverlay"), "getIngredientUnderMouse"))
@@ -423,7 +459,8 @@ public final class RecipeViewerCompat {
     }
 
     private static void renderItemActionGlyphs(GuiGraphics graphics, ControllerEntity controller,
-                                               int mouseX, int mouseY) {
+                                               int mouseX, int mouseY,
+                                               GuideRenderer.Bounds knownTooltip) {
         var leftClick = ControlifyBindings.VMOUSE_LCLICK.on(controller);
         var rightClick = ControlifyBindings.VMOUSE_RCLICK.on(controller);
         Component recipes = Component.translatable("controlify.compat.recipe_viewer.action.recipes");
@@ -449,7 +486,8 @@ public final class RecipeViewerCompat {
                 graphics,
                 new GuideRenderer.Bounds(mouseX - 8, mouseY - 8, mouseX + 9, mouseY + 9),
                 maxWidth,
-                totalHeight
+                totalHeight,
+                knownTooltip
         );
         int x = position.x();
         int y = position.y();
