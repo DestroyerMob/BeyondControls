@@ -7,6 +7,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -64,7 +65,10 @@ public final class GuideRenderer {
                 new HintPosition(centeredX, target.bottom() + gap),
                 new HintPosition(centeredX, target.top() - hintHeight - gap)
         );
-        List<Bounds> tooltips = TooltipTracker.boundsFor(Minecraft.getInstance().screen);
+        List<Bounds> tooltips = new ArrayList<>(
+                TooltipTracker.boundsFor(Minecraft.getInstance().screen)
+        );
+        tooltips.add(likelyTooltipRegion(graphics, target));
 
         HintPosition best = null;
         int bestOverlap = Integer.MAX_VALUE;
@@ -80,6 +84,15 @@ public final class GuideRenderer {
             }
         }
         return best == null ? new HintPosition(2, 2) : best;
+    }
+
+    private static Bounds likelyTooltipRegion(GuiGraphics graphics, Bounds target) {
+        int cursorX = target.left() + target.width() / 2;
+        int estimatedTooltipWidth = Math.min(320, Math.max(160, graphics.guiWidth() * 2 / 5));
+        boolean tooltipFitsOnRight = cursorX + 12 + estimatedTooltipWidth <= graphics.guiWidth();
+        return tooltipFitsOnRight
+                ? new Bounds(cursorX + 4, 0, graphics.guiWidth(), graphics.guiHeight())
+                : new Bounds(0, 0, cursorX - 4, graphics.guiHeight());
     }
 
     private static void renderAtTop(GuiGraphics graphics, Runnable render) {
