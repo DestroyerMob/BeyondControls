@@ -5,6 +5,7 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.world.level.storage.LevelSummary;
 
 import java.lang.reflect.Method;
+import java.util.Optional;
 
 /** Optional controller actions for Cherished Worlds without a hard dependency. */
 public final class CherishedWorldsCompat {
@@ -53,5 +54,26 @@ public final class CherishedWorldsCompat {
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
         }
+    }
+
+    public static Optional<FavoriteControlPosition> selectedWorldControlPosition(SelectWorldScreen screen) {
+        try {
+            SelectWorldScreenAccessor screenAccessor = (SelectWorldScreenAccessor) screen;
+            var list = screenAccessor.getList();
+            var selected = list == null ? null : list.getSelected();
+            if (selected == null || !Class.forName(ENTRY_ACCESSOR).isInstance(selected)) return Optional.empty();
+
+            int index = list.children().indexOf(selected);
+            if (index < 0) return Optional.empty();
+            int rowY = list.getY() + 15 + 36 * index - (int) list.getScrollAmount();
+            if (rowY + 9 < list.getY() || rowY > list.getBottom()) return Optional.empty();
+
+            return Optional.of(new FavoriteControlPosition(screen.width / 2 - 148, rowY));
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return Optional.empty();
+        }
+    }
+
+    public record FavoriteControlPosition(int starX, int y) {
     }
 }

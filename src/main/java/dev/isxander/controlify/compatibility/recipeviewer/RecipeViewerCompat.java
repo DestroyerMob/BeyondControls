@@ -5,6 +5,7 @@ import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.api.vmousesnapping.SnapPoint;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.platform.client.PlatformClientUtil;
 import dev.isxander.controlify.platform.main.PlatformMainUtil;
 import dev.isxander.controlify.screenop.ScreenProcessorProvider;
@@ -33,6 +34,8 @@ public final class RecipeViewerCompat {
     private static final String EMI_SCREEN_MANAGER = "dev.emi.emi.screen.EmiScreenManager";
     private static boolean jeiLoaded;
     private static boolean emiLoaded;
+    private static final int EDGE_PADDING = 4;
+    private static final int RECIPE_GUIDE_HEIGHT = 31;
 
     private RecipeViewerCompat() {
     }
@@ -42,6 +45,7 @@ public final class RecipeViewerCompat {
         emiLoaded = PlatformMainUtil.isModLoaded("emi");
         if (jeiLoaded) registerRecipeScreen(JEI_RECIPE_SCREEN);
         if (emiLoaded) registerRecipeScreen(EMI_RECIPE_SCREEN);
+        GuideRenderer.registerBoundsProvider(RecipeViewerCompat::guideBounds);
         VirtualMouseHandler.registerSnapPointProvider(RecipeViewerCompat::collectSnapPoints);
     }
 
@@ -175,20 +179,91 @@ public final class RecipeViewerCompat {
                 glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
                 glyph(ControlifyBindings.GUI_BACK, controller.get())
         );
-        drawGuideLine(graphics, primary, graphics.guiHeight() - 27);
-        drawGuideLine(graphics, secondary, graphics.guiHeight() - 15);
+        ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
+        drawGuideLine(graphics, primary, area, area.bottom() - 27);
+        drawGuideLine(graphics, secondary, area, area.bottom() - 15);
     }
 
     private static Component glyph(InputBindingSupplier supplier, ControllerEntity controller) {
         return supplier.on(controller).inputGlyph();
     }
 
-    private static void drawGuideLine(GuiGraphics graphics, Component line, int y) {
+    private static void drawGuideLine(GuiGraphics graphics, Component line, ViewerArea area, int y) {
         Font font = Minecraft.getInstance().font;
         int width = font.width(line);
-        int x = (graphics.guiWidth() - width) / 2;
+        int x = area.left() + Math.max(0, (area.width() - width) / 2);
         graphics.fill(x - 3, y - 2, x + width + 3, y + font.lineHeight + 2, 0xC0000000);
         graphics.drawString(font, line, x, y, 0xFFFFFFFF, false);
+    }
+
+    private static Optional<GuideRenderer.Bounds> guideBounds(Screen screen, int width, int height) {
+        if (screen == null || (!isRecipeViewerScreen(screen)
+                && (!(screen instanceof AbstractContainerScreen<?>) || !hasVisibleOverlay()))) {
+            return Optional.empty();
+        }
+        ViewerArea area = viewerArea(screen, width, height);
+        return Optional.of(new GuideRenderer.Bounds(
+                area.left(), area.top(), area.right(), Math.max(area.top() + 1, area.bottom() - RECIPE_GUIDE_HEIGHT)
+        ));
+    }
+
+    private static ViewerArea viewerArea(Screen screen, int width, int height) {
+        MutableViewerArea area = new MutableViewerArea(width, height);
+        if (jeiLoaded) {
+            try {
+                Object runtime = invokeStatic(JEI_INTERNAL, "getJeiRuntime");
+                reserveJeiOverlay(invoke(runtime, "getIngredientListOverlay"), area);
+                reserveJeiOverlay(invoke(runtime, "getBookmarkOverlay"), area);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (emiLoaded) {
+            try {
+                Object panels = staticField(EMI_SCREEN_MANAGER, "panels");
+                if (panels instanceof Collection<?> collection) {
+                    for (Object panel : collection) {
+                        if (booleanMethod(panel, "isVisible", false)) {
+                            reserveEdge(readRect(invoke(panel, "getBounds")), area);
+                        }
+                    }
+                }
+                Object search = staticField(EMI_SCREEN_MANAGER, "search");
+                reserveEdge(readRect(search), area);
+            } catch (Throwable ignored) {
+            }
+        }
+        return area.freeze();
+    }
+
+    private static void reserveJeiOverlay(Object overlay, MutableViewerArea area)
+            throws ReflectiveOperationException {
+        if (overlay == null || !booleanMethod(overlay, "isListDisplayed", false)) return;
+        Object contents = field(overlay, "contents");
+        if (contents != null) reserveEdge(readRect(invoke(contents, "getBackgroundArea")), area);
+        try {
+            Object search = field(overlay, "searchField");
+            reserveEdge(readRect(search), area);
+        } catch (NoSuchFieldException ignored) {
+        }
+    }
+
+    private static void reserveEdge(Rect rect, MutableViewerArea area) {
+        if (rect == null || rect.width() <= 0 || rect.height() <= 0) return;
+        int leftDistance = Math.max(0, rect.x());
+        int rightDistance = Math.max(0, area.screenWidth - rect.right());
+        int topDistance = Math.max(0, rect.y());
+        int bottomDistance = Math.max(0, area.screenHeight - rect.bottom());
+        int nearest = Math.min(Math.min(leftDistance, rightDistance), Math.min(topDistance, bottomDistance));
+
+        if (nearest == bottomDistance) {
+            area.bottom = Math.min(area.bottom, rect.y() - EDGE_PADDING);
+        } else if (nearest == topDistance) {
+            area.top = Math.max(area.top, rect.bottom() + EDGE_PADDING);
+        } else if (nearest == leftDistance) {
+            area.left = Math.max(area.left, rect.right() + EDGE_PADDING);
+        } else {
+            area.right = Math.min(area.right, rect.x() - EDGE_PADDING);
+        }
     }
 
     private static boolean isRecipeViewerScreen(Screen screen) {
@@ -226,13 +301,19 @@ public final class RecipeViewerCompat {
 
     private static void addBounds(Object bounds, Consumer<SnapPoint> consumer, int range)
             throws ReflectiveOperationException {
-        if (bounds == null) return;
-        int x = coordinate(bounds, "x", "getX");
-        int y = coordinate(bounds, "y", "getY");
-        int width = coordinate(bounds, "width", "getWidth");
-        int height = coordinate(bounds, "height", "getHeight");
-        if (width <= 0 || height <= 0) return;
-        consumer.accept(new SnapPoint(new Vector2i(x + width / 2, y + height / 2), range));
+        Rect rect = readRect(bounds);
+        if (rect == null || rect.width() <= 0 || rect.height() <= 0) return;
+        consumer.accept(new SnapPoint(new Vector2i(rect.x() + rect.width() / 2, rect.y() + rect.height() / 2), range));
+    }
+
+    private static Rect readRect(Object bounds) throws ReflectiveOperationException {
+        if (bounds == null) return null;
+        return new Rect(
+                coordinate(bounds, "x", "getX"),
+                coordinate(bounds, "y", "getY"),
+                coordinate(bounds, "width", "getWidth"),
+                coordinate(bounds, "height", "getHeight")
+        );
     }
 
     private static int coordinate(Object target, String recordMethod, String beanMethod)
@@ -310,5 +391,35 @@ public final class RecipeViewerCompat {
             }
         }
         throw new NoSuchFieldException(type.getName() + "." + name);
+    }
+
+    private record Rect(int x, int y, int width, int height) {
+        int right() { return x + width; }
+        int bottom() { return y + height; }
+    }
+
+    private record ViewerArea(int left, int top, int right, int bottom) {
+        int width() { return Math.max(0, right - left); }
+    }
+
+    private static final class MutableViewerArea {
+        private final int screenWidth;
+        private final int screenHeight;
+        private int left;
+        private int top;
+        private int right;
+        private int bottom;
+
+        private MutableViewerArea(int width, int height) {
+            this.screenWidth = width;
+            this.screenHeight = height;
+            this.right = width;
+            this.bottom = height;
+        }
+
+        private ViewerArea freeze() {
+            if (right <= left || bottom <= top) return new ViewerArea(0, 0, screenWidth, screenHeight);
+            return new ViewerArea(left, top, right, bottom);
+        }
     }
 }
