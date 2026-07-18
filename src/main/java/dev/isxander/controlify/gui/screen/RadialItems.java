@@ -1,5 +1,6 @@
 package dev.isxander.controlify.gui.screen;
 
+import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.RadialIcon;
 import dev.isxander.controlify.api.event.ControlifyEvents;
 import dev.isxander.controlify.api.radial.ContextualRadialAction;
@@ -21,6 +22,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -35,40 +37,51 @@ public final class RadialItems {
         RadialMenuScreen.RadialItem[] items = new RadialMenuScreen.RadialItem[8];
 
         for (int i = 0; i < 8; i++) {
-            Identifier configuredBindingId = controller.settings().input.radialMenu.radialWheels.get(wheel).get(i);
-            ContextualRadialAction contextualAction = new ContextualRadialAction(
-                    Minecraft.getInstance(), controller, wheel, i, configuredBindingId
-            );
-            ControlifyEvents.CONTEXTUAL_RADIAL_ACTION.invoke(contextualAction);
-
-            items[i] = getItemForBinding(contextualAction.resolvedAction(), controller);
+            items[i] = createBinding(controller, wheel, i);
         }
 
         return items;
     }
 
-    public static boolean playQuickAction(ControllerEntity controller, int wheel) {
-        Identifier action = controller.settings().input.radialMenu.quickActions.get(wheel);
-        if (RadialIcons.EMPTY.equals(action)) {
-            return false;
+    private static RadialMenuScreen.RadialItem createBinding(ControllerEntity controller, int wheel, int slot) {
+        Identifier configuredBindingId = controller.settings().input.radialMenu.radialWheels.get(wheel).get(slot);
+        ContextualRadialAction contextualAction = new ContextualRadialAction(
+                Minecraft.getInstance(), controller, wheel, slot, configuredBindingId
+        );
+        ControlifyEvents.CONTEXTUAL_RADIAL_ACTION.invoke(contextualAction);
+
+        RadialMenuScreen.RadialItem item = getItemForBinding(contextualAction.resolvedAction(), controller);
+        Identifier iconOverride = controller.settings().input.radialMenu.radialIcons.get(wheel).get(slot);
+        if (!InputSettings.RadialMenuSettings.AUTO_ICON.equals(iconOverride)) {
+            RadialIcon icon = RadialIcons.getIcons().get(iconOverride);
+            if (icon != null && item instanceof RadialItemRecord record) {
+                item = new RadialItemRecord(record.name(), icon, record.action(), record.id());
+            }
         }
-        return getItemForBinding(action, controller).playAction();
+        return item;
     }
 
-    public static List<Identifier> getBindingCandidates(ControllerEntity controller) {
-        List<Identifier> candidates = new ArrayList<>();
-        candidates.add(RadialIcons.EMPTY);
-        controller.input().orElseThrow().getAllBindings().forEach(binding ->
-                binding.radialIcon().ifPresent(icon -> candidates.add(binding.id())));
-        return candidates;
-    }
-
-    public static Component getBindingName(ControllerEntity controller, Identifier id) {
-        if (RadialIcons.EMPTY.equals(id)) {
-            return Component.translatable("controlify.radial.empty_action");
+    public static RadialMenuScreen.RadialItem[] createSlotAssignment(
+            ControllerEntity controller, int wheel, InputBinding targetBinding
+    ) {
+        RadialMenuScreen.RadialItem[] items = createBindings(controller, wheel);
+        for (int slot = 0; slot < items.length; slot++) {
+            int slotIndex = slot;
+            RadialMenuScreen.RadialItem current = items[slot];
+            items[slot] = new RadialItemRecord(
+                    current.name(), current.icon(),
+                    () -> {
+                        controller.settings().input.radialMenu.radialWheels.get(wheel)
+                                .set(slotIndex, targetBinding.id());
+                        controller.settings().input.radialMenu.radialIcons.get(wheel)
+                                .set(slotIndex, InputSettings.RadialMenuSettings.AUTO_ICON);
+                        Controlify.instance().config().markDirty();
+                        return true;
+                    },
+                    targetBinding.id()
+            );
         }
-        InputBinding binding = controller.input().orElseThrow().getBinding(id);
-        return binding == null ? Component.literal(id.toString()) : binding.name();
+        return items;
     }
 
     public static RadialMenuScreen.RadialItem[] createGameModes() {
@@ -307,12 +320,14 @@ public final class RadialItems {
         }
         InputBinding binding = controller.input().orElseThrow().getBinding(id);
 
-        if (binding == null || binding.radialIcon().isEmpty()) {
-            CUtil.LOGGER.warn("Binding {} does not exist or is not a radial candidate", binding);
+        if (binding == null) {
+            CUtil.LOGGER.warn("Binding {} does not exist", id);
             return EMPTY_ACTION;
         }
 
-        RadialIcon icon = RadialIcons.getIcons().get(binding.radialIcon().get());
+        RadialIcon icon = binding.radialIcon()
+                .map(RadialIcons.getIcons()::get)
+                .orElse(RadialIcon.EMPTY);
         return new RadialItemRecord(
                 binding.name(),
                 icon,
@@ -420,6 +435,62 @@ public final class RadialItems {
             });
 
             return items;
+        }
+    }
+
+    public static class IconEditMode implements RadialMenuScreen.EditMode {
+        private final ControllerEntity controller;
+        private final int wheel;
+
+        public IconEditMode(ControllerEntity controller, int wheel) {
+            this.controller = controller;
+            this.wheel = wheel;
+        }
+
+        @Override
+        public void setRadialItem(int index, RadialMenuScreen.RadialItem item) {
+            controller.settings().input.radialMenu.radialIcons.get(wheel)
+                    .set(index, ((RadialItemRecord) item).id());
+        }
+
+        @Override
+        public RadialMenuScreen.RadialItem getRadialItem(int index, RadialMenuScreen.RadialItem selectedItem) {
+            return createBinding(controller, wheel, index);
+        }
+
+        @Override
+        public List<RadialMenuScreen.RadialItem> getEditCandidates() {
+            List<RadialMenuScreen.RadialItem> items = new ArrayList<>();
+            items.add(new RadialItemRecord(
+                    Component.translatable("controlify.radial.icon.auto"),
+                    RadialIcon.EMPTY,
+                    () -> false,
+                    InputSettings.RadialMenuSettings.AUTO_ICON
+            ));
+            RadialIcons.getIcons().entrySet().stream()
+                    .filter(entry -> !RadialIcons.EMPTY.equals(entry.getKey()))
+                    .sorted(Comparator.comparing(entry -> entry.getKey().toString()))
+                    .forEach(entry -> items.add(new RadialItemRecord(
+                            iconName(entry.getKey()),
+                            entry.getValue(),
+                            () -> false,
+                            entry.getKey()
+                    )));
+            return items;
+        }
+
+        private static Component iconName(Identifier id) {
+            String path = id.getPath();
+            int slash = path.lastIndexOf('/');
+            String label = (slash >= 0 ? path.substring(slash + 1) : path).replace('_', ' ');
+            return Component.literal(label + " · " + id.getNamespace());
+        }
+
+        @Override
+        public boolean isSelected(int index, RadialMenuScreen.RadialItem item) {
+            return item instanceof RadialItemRecord record
+                    && controller.settings().input.radialMenu.radialIcons.get(wheel).get(index)
+                    .equals(record.id());
         }
     }
 }

@@ -5,6 +5,7 @@ import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.api.ingameinput.LookInputModifier;
 import dev.isxander.controlify.api.event.ControlifyEvents;
 import dev.isxander.controlify.bindings.ControlifyBindings;
+import dev.isxander.controlify.bindings.BindContext;
 import dev.isxander.controlify.config.settings.profile.GyroSettings;
 import dev.isxander.controlify.config.settings.profile.InputSettings;
 import dev.isxander.controlify.controller.gyro.GyroState;
@@ -314,11 +315,26 @@ public class InGameInputHandler {
                 return true;
             }
         } else if (binding.justReleased()) {
-            RadialItems.playQuickAction(controller, wheel);
+            playTapBindings(binding);
             state.reset();
         }
 
         return false;
+    }
+
+    private void playTapBindings(InputBinding wheelBinding) {
+        controller.input().orElseThrow().getAllBindings().stream()
+                .filter(binding -> !isActionWheelBinding(binding))
+                .filter(binding -> binding.contexts().isEmpty() || binding.contexts().contains(BindContext.IN_GAME))
+                .filter(binding -> binding.boundInput().equals(wheelBinding.boundInput()))
+                .forEach(InputBinding::fakePress);
+    }
+
+    private boolean isActionWheelBinding(InputBinding binding) {
+        return binding == ControlifyBindings.RADIAL_MENU_UP.on(controller)
+                || binding == ControlifyBindings.RADIAL_MENU_DOWN.on(controller)
+                || binding == ControlifyBindings.RADIAL_MENU_LEFT.on(controller)
+                || binding == ControlifyBindings.RADIAL_MENU.on(controller);
     }
 
     private static final class ActionWheelPressState {

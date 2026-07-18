@@ -2,6 +2,7 @@ package dev.isxander.controlify.gui.controllers;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.bindings.ControlifyBindings;
+import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.bindings.input.*;
 import dev.isxander.controlify.controller.*;
 import dev.isxander.controlify.controller.input.ControllerStateView;
@@ -27,11 +28,13 @@ import java.util.Optional;
 public class BindController implements Controller<Input> {
     private final Option<Input> option;
     public final ControllerEntity controller;
+    private final InputBinding binding;
     private boolean conflicting;
 
-    public BindController(Option<Input> option, ControllerEntity controller) {
+    public BindController(Option<Input> option, ControllerEntity controller, InputBinding binding) {
         this.option = option;
         this.controller = controller;
+        this.binding = binding;
     }
 
     @Override
@@ -114,7 +117,14 @@ public class BindController implements Controller<Input> {
 
         private void openConsumerScreen() {
             awaitingControllerInput = true;
-            Minecraft.getInstance().setScreen(new BindConsumerScreen(this::getPressedBind, control.option(), this, Minecraft.getInstance().screen));
+            Minecraft.getInstance().setScreen(new BindConsumerScreen(
+                    this::getPressedBind,
+                    control.option(),
+                    this,
+                    Minecraft.getInstance().screen,
+                    control.controller,
+                    control.binding
+            ));
         }
 
         @Override

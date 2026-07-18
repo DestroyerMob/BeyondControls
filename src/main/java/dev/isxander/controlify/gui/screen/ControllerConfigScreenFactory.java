@@ -4,6 +4,7 @@ import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.guide.GuideVerbosity;
 import dev.isxander.controlify.bindings.BindContext;
 import dev.isxander.controlify.bindings.ControlifyBindApiImpl;
+import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.bindings.input.EmptyInput;
@@ -636,7 +637,6 @@ public class ControllerConfigScreenFactory {
 
         if (controller.isPresent()) {
             ControllerEntity configuredController = controller.orElseThrow();
-            List<Identifier> quickActionCandidates = RadialItems.getBindingCandidates(configuredController);
             String[] directions = {"up", "down", "left", "right"};
 
             for (int wheel = 0; wheel < InputSettings.RadialMenuSettings.WHEEL_COUNT; wheel++) {
@@ -653,23 +653,10 @@ public class ControllerConfigScreenFactory {
                                 null,
                                 RadialItems.createBindings(configuredController, wheelIndex),
                                 Component.empty(),
-                                new RadialItems.BindingEditMode(configuredController, wheelIndex),
+                                new RadialItems.IconEditMode(configuredController, wheelIndex),
                                 screen
                         )))
                         .text(Component.translatable("controlify.gui.radial_menu.btn_text"))
-                        .build());
-
-                category.option(Option.<Identifier>createBuilder()
-                        .name(Component.translatable("controlify.gui.radial_menu.quick_action." + direction))
-                        .description(OptionDescription.createBuilder()
-                                .text(Component.translatable("controlify.gui.radial_menu.quick_action.tooltip"))
-                                .build())
-                        .binding(radialDef.quickActions.get(wheelIndex),
-                                () -> radialConfig.quickActions.get(wheelIndex),
-                                value -> radialConfig.quickActions.set(wheelIndex, value))
-                        .controller(opt -> CyclingListControllerBuilder.create(opt)
-                                .values(quickActionCandidates)
-                                .formatValue(value -> RadialItems.getBindingName(configuredController, value)))
                         .build());
             }
         }
@@ -733,16 +720,26 @@ public class ControllerConfigScreenFactory {
             List<OptionBindPair> conflicting = all.stream()
                     .filter(pair -> pair.binding() != opt.binding())
                     .filter(pair -> {
+                        boolean intentionalWheelLayer = isActionWheelBinding(opt.binding())
+                                != isActionWheelBinding(pair.binding());
                         boolean contextsMatch = pair.binding().contexts()
                                 .stream()
                                 .anyMatch(ctxs::contains);
                         boolean bindMatches = pair.option().pendingValue().equals(opt.option().pendingValue());
                         boolean bindIsNotEmpty = !(pair.option().pendingValue() instanceof EmptyInput);
-                        return contextsMatch && bindMatches && bindIsNotEmpty;
+                        return !intentionalWheelLayer && contextsMatch && bindMatches && bindIsNotEmpty;
                     }).toList();
 
             conflicting.forEach(conflict -> ((BindController) conflict.option().controller()).setConflicting(true));
         }
+    }
+
+    private static boolean isActionWheelBinding(InputBinding binding) {
+        var id = binding.id();
+        return id.equals(ControlifyBindings.RADIAL_MENU.bindId())
+                || id.equals(ControlifyBindings.RADIAL_MENU_UP.bindId())
+                || id.equals(ControlifyBindings.RADIAL_MENU_DOWN.bindId())
+                || id.equals(ControlifyBindings.RADIAL_MENU_LEFT.bindId());
     }
 
     private static Map<Component, List<InputBinding>> groupBindings(Collection<InputBinding> bindings) {
@@ -781,7 +778,7 @@ public class ControllerConfigScreenFactory {
                         ))
                         .build())
                 .binding(EmptyInput.INSTANCE, binding::boundInput, binding::setBoundInput)
-                .customController(opt -> new BindController(opt, controller));
+                .customController(opt -> new BindController(opt, controller, binding));
     }
 
     private static Identifier screenshot(String filename) {

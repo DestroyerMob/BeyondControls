@@ -42,6 +42,9 @@
     "controlify:use": {
       "axis": "controlify:axis/left_trigger"
     },
+    "controlify:drop": {
+      "button": "controlify:button/dpad_down"
+    },
     "controlify:drop_inventory": {
       "button": "controlify:button/north"
     },
@@ -62,6 +65,9 @@
     },
     "controlify:swap_hands": {
       "button": "controlify:button/west"
+    },
+    "controlify:open_chat": {
+      "button": "controlify:button/dpad_up"
     },
     "controlify:gui_press": {
       "button": "controlify:button/south"
@@ -104,6 +110,9 @@
     },
     "controlify:bundle_navi_right": {
       "axis": "controlify:axis/right_stick_right"
+    },
+    "controlify:pick_block": {
+      "button": "controlify:button/dpad_left"
     },
     "controlify:radial_menu": {
       "button": "controlify:button/dpad_right"

@@ -66,13 +66,13 @@ public record InputConfig(
     public record RadialMenuConfig(
             List<Identifier> radialActions,
             List<List<Identifier>> radialWheels,
-            List<Identifier> quickActions,
+            List<List<Identifier>> radialIcons,
             int radialButtonFocusTimeoutTicks
     ) {
         public static final Codec<RadialMenuConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Identifier.CODEC.listOf(8, 8).fieldOf("actions").forGetter(RadialMenuConfig::radialActions),
                 Identifier.CODEC.listOf(8, 8).listOf(4, 4).optionalFieldOf("wheels", List.of()).forGetter(RadialMenuConfig::radialWheels),
-                Identifier.CODEC.listOf(4, 4).optionalFieldOf("quick_actions", List.of()).forGetter(RadialMenuConfig::quickActions),
+                Identifier.CODEC.listOf(8, 8).listOf(4, 4).optionalFieldOf("radial_icons", List.of()).forGetter(RadialMenuConfig::radialIcons),
                 Codec.INT.fieldOf("button_focus_timeout_ticks").forGetter(RadialMenuConfig::radialButtonFocusTimeoutTicks)
         ).apply(instance, RadialMenuConfig::new));
 
@@ -84,8 +84,9 @@ public record InputConfig(
                     || radialWheels.stream().anyMatch(wheel -> wheel.size() != 8))) {
                 throw new IllegalArgumentException("radialWheels must be empty or contain four 8-action wheels");
             }
-            if (!quickActions.isEmpty() && quickActions.size() != 4) {
-                throw new IllegalArgumentException("quickActions must be empty or contain four actions");
+            if (!radialIcons.isEmpty() && (radialIcons.size() != 4
+                    || radialIcons.stream().anyMatch(wheel -> wheel.size() != 8))) {
+                throw new IllegalArgumentException("radialIcons must be empty or contain four 8-icon wheels");
             }
         }
     }

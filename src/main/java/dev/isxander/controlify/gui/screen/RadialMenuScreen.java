@@ -247,6 +247,14 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
         void setRadialItem(int index, RadialItem item);
 
         List<RadialItem> getEditCandidates();
+
+        default RadialItem getRadialItem(int index, RadialItem selectedItem) {
+            return selectedItem;
+        }
+
+        default boolean isSelected(int index, RadialItem item) {
+            return false;
+        }
     }
 
     public class RadialButton implements Renderable, GuiEventListener, NarratableEntry, ComponentProcessor {
@@ -392,7 +400,7 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
 
         private int x, y;
         private int width, height;
-        private final int itemHeight = 10;
+        private final int itemHeight = 18;
         private int scrollOffset;
 
         private boolean focused;
@@ -411,9 +419,9 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
                 children.add(new ActionEntry(item));
             }
 
-            RadialItem item = items[radialIndex];
             children.stream()
-                    .filter(action -> action.item.equals(item))
+                    .filter(action -> editMode.isSelected(radialIndex, action.item)
+                            || action.item.equals(items[radialIndex]))
                     .findAny()
                     .ifPresent(this::setFocused);
         }
@@ -423,10 +431,12 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
             graphics.fill(x, y, x + width, y + height, 0x80000000);
 
             graphics.enableScissor(x, y, x + width, y + height);
-            int y = this.y - scrollOffset;
-            for (ActionEntry child : children) {
-                child.render(graphics, x, y, width, itemHeight, mouseX, mouseY, delta);
-                y += itemHeight;
+            int firstVisible = Math.max(0, scrollOffset / itemHeight);
+            int lastVisible = Math.min(children.size(), (scrollOffset + height + itemHeight - 1) / itemHeight);
+            int childY = this.y + firstVisible * itemHeight - scrollOffset;
+            for (int index = firstVisible; index < lastVisible; index++) {
+                children.get(index).render(graphics, x, childY, width, itemHeight, mouseX, mouseY, delta);
+                childY += itemHeight;
             }
             graphics.disableScissor();
 
@@ -520,7 +530,11 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
 
                 if (focused)
                     graphics.fill(x, y, x + width, y + itemHeight, 0xff000000);
-                graphics.drawString(RadialMenuScreen.this.font, item.name(), x + 2, y + 1, focused ? -1 : 0xffa6a6a6);
+                var pose = CGuiPose.ofPush(graphics);
+                pose.translate(x + 1, y + 1);
+                item.icon().draw(graphics, 0, 0, delta);
+                pose.pop();
+                graphics.drawString(RadialMenuScreen.this.font, item.name(), x + 20, y + 5, focused ? -1 : 0xffa6a6a6);
             }
 
             @Override
@@ -549,9 +563,10 @@ public class RadialMenuScreen extends Screen implements ScreenControllerEventLis
                 if (controller == RadialMenuScreen.this.controller) {
                     if (ControlifyBindings.GUI_PRESS.on(controller).justPressed()) {
                         editMode.setRadialItem(radialIndex, item);
+                        RadialItem updatedItem = editMode.getRadialItem(radialIndex, item);
                         Controlify.instance().config().markDirty();
 
-                        buttons[radialIndex].setAction(item);
+                        buttons[radialIndex].setAction(updatedItem);
 
                         playClickSound();
                         finishEditing();

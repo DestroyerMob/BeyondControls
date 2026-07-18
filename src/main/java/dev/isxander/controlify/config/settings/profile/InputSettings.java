@@ -148,24 +148,27 @@ public class InputSettings {
         public static final int LEFT = 2;
         public static final int RIGHT = 3;
         public static final int WHEEL_COUNT = 4;
+        public static final Identifier AUTO_ICON = CUtil.rl("auto");
 
         public List<List<Identifier>> radialWheels;
-        public List<Identifier> quickActions;
+        public List<List<Identifier>> radialIcons;
         public int radialButtonFocusTimeoutTicks;
 
         public RadialMenuSettings(List<List<Identifier>> radialWheels,
-                                  List<Identifier> quickActions,
+                                  List<List<Identifier>> radialIcons,
                                   int radialButtonFocusTimeoutTicks) {
             if (radialWheels.size() != WHEEL_COUNT
                     || radialWheels.stream().anyMatch(wheel -> wheel.size() != 8)) {
                 throw new IllegalArgumentException("radialWheels must contain four 8-action wheels");
             }
-            if (quickActions.size() != WHEEL_COUNT) {
-                throw new IllegalArgumentException("quickActions must contain four actions");
+            if (radialIcons.size() != WHEEL_COUNT
+                    || radialIcons.stream().anyMatch(wheel -> wheel.size() != 8)) {
+                throw new IllegalArgumentException("radialIcons must contain four 8-icon wheels");
             }
             this.radialWheels = new ArrayList<>(WHEEL_COUNT);
             radialWheels.forEach(wheel -> this.radialWheels.add(new ArrayList<>(wheel)));
-            this.quickActions = new ArrayList<>(quickActions);
+            this.radialIcons = new ArrayList<>(WHEEL_COUNT);
+            radialIcons.forEach(wheel -> this.radialIcons.add(new ArrayList<>(wheel)));
             this.radialButtonFocusTimeoutTicks = radialButtonFocusTimeoutTicks;
         }
 
@@ -175,20 +178,18 @@ public class InputSettings {
                             .mapToObj(index -> dto.radialActions())
                             .toList()
                     : dto.radialWheels();
-            List<Identifier> quickActions = dto.quickActions().isEmpty()
-                    ? List.of(
-                            CUtil.rl("open_chat"),
-                            CUtil.rl("drop"),
-                            CUtil.rl("pick_block"),
-                            CUtil.rl("empty")
-                    )
-                    : dto.quickActions();
-            return new RadialMenuSettings(wheels, quickActions, dto.radialButtonFocusTimeoutTicks());
+            List<List<Identifier>> icons = dto.radialIcons().isEmpty()
+                    ? java.util.stream.IntStream.range(0, WHEEL_COUNT)
+                            .mapToObj(wheel -> java.util.stream.IntStream.range(0, 8)
+                                    .mapToObj(slot -> AUTO_ICON).toList())
+                            .toList()
+                    : dto.radialIcons();
+            return new RadialMenuSettings(wheels, icons, dto.radialButtonFocusTimeoutTicks());
         }
 
         public InputConfig.RadialMenuConfig toDTO() {
             return new InputConfig.RadialMenuConfig(
-                    radialWheels.get(RIGHT), radialWheels, quickActions, radialButtonFocusTimeoutTicks
+                    radialWheels.get(RIGHT), radialWheels, radialIcons, radialButtonFocusTimeoutTicks
             );
         }
     }
