@@ -1,6 +1,7 @@
 package dev.isxander.controlify.mixins.feature.screenop.impl.outofgame;
 
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.WorldSelectionList;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,4 +14,10 @@ public interface SelectWorldScreenAccessor {
 
     @Accessor
     WorldSelectionList getList();
+
+    @Accessor
+    Button getDeleteButton();
+
+    @Accessor
+    EditBox getSearchBox();
 }

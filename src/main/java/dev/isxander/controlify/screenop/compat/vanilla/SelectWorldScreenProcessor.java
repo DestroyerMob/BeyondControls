@@ -1,6 +1,7 @@
 package dev.isxander.controlify.screenop.compat.vanilla;
 
 import dev.isxander.controlify.bindings.ControlifyBindings;
+import dev.isxander.controlify.compatibility.cherishedworlds.CherishedWorldsCompat;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.screenop.ScreenProcessor;
 import dev.isxander.controlify.mixins.feature.screenop.impl.outofgame.SelectWorldScreenAccessor;
@@ -16,6 +17,12 @@ public class SelectWorldScreenProcessor extends ScreenProcessor<SelectWorldScree
 
     @Override
     protected void handleButtons(ControllerEntity controller) {
+        if (ControlifyBindings.GUI_ABSTRACT_ACTION_2.on(controller).guiPressed().get()
+                && CherishedWorldsCompat.toggleSelectedWorld(screen)) {
+            playClackSound();
+            return;
+        }
+
         if (ControlifyBindings.GUI_ABSTRACT_ACTION_1.on(controller).justPressed()) {
             playClackSound();
             var minecraft = Minecraft.getInstance();
