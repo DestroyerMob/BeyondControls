@@ -127,6 +127,7 @@ public class Controlify implements ControlifyApi {
         this.defaultConfigManager = new DefaultConfigManager();
         this.controllerTypeManager = new ControllerTypeManager();
         this.keyboardLayoutManager = new KeyboardLayoutManager();
+        ControlifyCompat.preInit();
         PlatformClientUtil.registerAssetReloadListener(inputFontMapper);
         PlatformClientUtil.registerAssetReloadListener(defaultBindManager);
         PlatformClientUtil.registerAssetReloadListener(defaultConfigManager);

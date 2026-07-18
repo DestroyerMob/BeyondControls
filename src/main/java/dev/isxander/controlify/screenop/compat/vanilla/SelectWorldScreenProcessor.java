@@ -5,14 +5,38 @@ import dev.isxander.controlify.compatibility.cherishedworlds.CherishedWorldsComp
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.screenop.ScreenProcessor;
 import dev.isxander.controlify.mixins.feature.screenop.impl.outofgame.SelectWorldScreenAccessor;
+import dev.isxander.controlify.utils.ToastUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 
 public class SelectWorldScreenProcessor extends ScreenProcessor<SelectWorldScreen> {
+    private boolean favoriteHintShown;
+
     public SelectWorldScreenProcessor(SelectWorldScreen screen) {
         super(screen);
+    }
+
+    @Override
+    public void onControllerUpdate(ControllerEntity controller) {
+        if (!favoriteHintShown && CherishedWorldsCompat.isAvailable()) {
+            favoriteHintShown = true;
+            var binding = ControlifyBindings.GUI_ABSTRACT_ACTION_2.on(controller);
+            if (!binding.isUnbound()) {
+                ToastUtils.sendToast(
+                        Component.translatable("controlify.toast.favorite_world.title"),
+                        Component.empty()
+                                .append(binding.inputGlyph())
+                                .append(CommonComponents.SPACE)
+                                .append(Component.translatable("controlify.toast.favorite_world.description")),
+                        false
+                );
+            }
+        }
+        super.onControllerUpdate(controller);
     }
 
     @Override

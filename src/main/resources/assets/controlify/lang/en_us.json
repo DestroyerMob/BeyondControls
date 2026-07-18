@@ -1,6 +1,11 @@
 {
   "controlify.placeholder": "%1$s",
 
+  "controlify.toast.favorite_world.title": "World Favorites",
+  "controlify.toast.favorite_world.description": "Toggle the selected world's favorite state",
+  "controlify.compat.recipe_viewer.guide.primary": "%1$s Navigate   %2$s Recipes   %3$s Uses",
+  "controlify.compat.recipe_viewer.guide.secondary": "%1$s Scroll   %2$s Back",
+
   "controlify.gui.carousel.title": "Controllers",
   "controlify.gui.carousel.no_controllers": "No controllers connected.",
   "controlify.gui.carousel.entry.settings": "Settings",

@@ -12,3 +12,5 @@ This version has the following targets:
 - Add prioritized contextual bindings and modifier-layer activation conditions.
 - Ensure suppressed key emulation releases cleanly when a higher-priority action wins.
 - Add optional Cherished Worlds support: Triangle/Y toggles the selected world's favorite state on the world-selection screen.
+- Show a controller toast explaining the world-favorite action when the world list opens.
+- Add JEI and EMI controller cursors, item-grid snapping, clicks, scrolling, and an unobscured control legend.

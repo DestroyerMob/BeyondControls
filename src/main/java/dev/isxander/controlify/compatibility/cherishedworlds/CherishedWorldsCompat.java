@@ -16,6 +16,15 @@ public final class CherishedWorldsCompat {
     private CherishedWorldsCompat() {
     }
 
+    public static boolean isAvailable() {
+        try {
+            Class.forName(FAVORITES_LIST);
+            return true;
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
+    }
+
     public static boolean toggleSelectedWorld(SelectWorldScreen screen) {
         try {
             SelectWorldScreenAccessor screenAccessor = (SelectWorldScreenAccessor) screen;

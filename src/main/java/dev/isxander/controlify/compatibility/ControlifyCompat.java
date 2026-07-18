@@ -16,6 +16,17 @@ public class ControlifyCompat {
     public static final String IMMEDIATELY_FAST = "immediatelyfast";
     public static final String SIMPLE_VOICE_CHAT = "voicechat";
     public static final String FANCY_MENU = "fancymenu";
+    public static final String JEI = "jei";
+    public static final String EMI = "emi";
+
+    public static void preInit() {
+        if (modsLoaded.apply(JEI) || modsLoaded.apply(EMI)) {
+            wrapCompatCall(
+                    modsLoaded.apply(JEI) ? JEI : EMI,
+                    dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat::preInit
+            );
+        }
+    }
 
     public static void init() {
         //? if simple_voice_chat {
@@ -39,6 +50,13 @@ public class ControlifyCompat {
             disabledMods.add(FANCY_MENU);
         }
         //?}
+
+        if (modsLoaded.apply(JEI) || modsLoaded.apply(EMI)) {
+            wrapCompatCall(
+                    modsLoaded.apply(JEI) ? JEI : EMI,
+                    dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat::init
+            );
+        }
     }
 
     private static void wrapCompatCall(String modid, Runnable runnable) throws NoClassDefFoundError {

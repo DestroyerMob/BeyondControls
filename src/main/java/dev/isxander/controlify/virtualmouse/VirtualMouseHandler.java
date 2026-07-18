@@ -22,6 +22,7 @@ import dev.isxander.controlify.utils.render.Blit;
 import dev.isxander.controlify.utils.render.CGuiPose;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.navigation.ScreenAxis;
 import net.minecraft.client.gui.navigation.ScreenDirection;
 import net.minecraft.network.chat.Component;
@@ -50,6 +51,11 @@ public class VirtualMouseHandler {
     private SnapPoint lastSnappedPoint;
 
     private final HoldRepeatHelper holdRepeatHelper = new HoldRepeatHelper(10, 3);
+    private static final List<SnapPointProvider> SNAP_POINT_PROVIDERS = new ArrayList<>();
+
+    public static void registerSnapPointProvider(SnapPointProvider provider) {
+        SNAP_POINT_PROVIDERS.add(provider);
+    }
 
     public VirtualMouseHandler() {
         this.minecraft = Minecraft.getInstance();
@@ -546,12 +552,20 @@ public class VirtualMouseHandler {
     }
 
     private Set<SnapPoint> collectSnapPoints() {
+        Set<SnapPoint> points = new HashSet<>();
         if (minecraft.screen instanceof ISnapBehaviour snapBehaviour) {
-            Set<SnapPoint> points = new HashSet<>();
             snapBehaviour.controlify$collectSnapPoints(points::add);
-            return points;
-        } else {
-            return Set.of();
         }
+        if (minecraft.screen != null) {
+            for (SnapPointProvider provider : SNAP_POINT_PROVIDERS) {
+                provider.collect(minecraft.screen, points::add);
+            }
+        }
+        return points;
+    }
+
+    @FunctionalInterface
+    public interface SnapPointProvider {
+        void collect(Screen screen, java.util.function.Consumer<SnapPoint> consumer);
     }
 }
