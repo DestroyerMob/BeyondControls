@@ -2,44 +2,57 @@ package dev.isxander.controlify.gui.guide;
 
 import com.google.common.collect.Lists;
 import dev.isxander.controlify.utils.render.Blit;
+import dev.isxander.controlify.mixins.feature.guide.screen.AbstractContainerScreenAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 public final class GuideRenderer {
-    private static final List<BoundsProvider> BOUNDS_PROVIDERS = new CopyOnWriteArrayList<>();
-
     private GuideRenderer() {}
 
-    public static void registerBoundsProvider(BoundsProvider provider) {
-        BOUNDS_PROVIDERS.add(provider);
-    }
-
-    public static Bounds resolveBounds(Minecraft minecraft) {
+    private static Bounds screenBounds(Minecraft minecraft) {
         int width = minecraft.getWindow().getGuiScaledWidth();
         int height = minecraft.getWindow().getGuiScaledHeight();
-        Bounds bounds = new Bounds(0, 0, width, height);
-        for (BoundsProvider provider : BOUNDS_PROVIDERS) {
-            try {
-                Optional<Bounds> provided = provider.get(minecraft.screen, width, height);
-                if (provided.isPresent()) bounds = bounds.intersect(provided.get());
-            } catch (Throwable ignored) {
-            }
-        }
-        return bounds;
+        return new Bounds(0, 0, width, height);
     }
 
     public static void render(GuiGraphics graphics, GuideDomain<?> domain, Minecraft minecraft, boolean bottomAligned, boolean textContrast) {
-        Bounds bounds = resolveBounds(minecraft);
+        render(graphics, domain, minecraft, bottomAligned, textContrast, screenBounds(minecraft));
+    }
+
+    public static void render(GuiGraphics graphics, GuideDomain<?> domain, Minecraft minecraft,
+                              boolean bottomAligned, boolean textContrast, Bounds bounds) {
 
         Blit.batchDraw(graphics, () -> {
             renderLines(graphics, domain.leftGuides(), minecraft.font, bounds, bottomAligned, false, textContrast);
             renderLines(graphics, domain.rightGuides(), minecraft.font, bounds, bottomAligned, true, textContrast);
         });
+    }
+
+    public static int contentHeight(GuideDomain<?> domain) {
+        return Math.max(linesHeight(domain.leftGuides()), linesHeight(domain.rightGuides()));
+    }
+
+    private static int linesHeight(PrecomputedLines lines) {
+        if (lines.lines().isEmpty()) return 0;
+        return lines.height() + (lines.lines().size() - 1) * 2;
+    }
+
+    public static Bounds belowContainer(AbstractContainerScreen<?> screen) {
+        var accessor = (AbstractContainerScreenAccessor) screen;
+        int bottom = accessor.getTopPos() + accessor.getImageHeight();
+        // Creative tabs protrude below the nominal container texture.
+        if (screen instanceof CreativeModeInventoryScreen) bottom += 28;
+        return new Bounds(
+                accessor.getLeftPos(),
+                Math.min(bottom, screen.height),
+                accessor.getLeftPos() + accessor.getImageWidth(),
+                screen.height
+        );
     }
 
     private static void renderLines(GuiGraphics graphics, PrecomputedLines lines, Font font, Bounds bounds, boolean bottomAligned, boolean rightAligned, boolean textContrast) {
@@ -71,19 +84,6 @@ public final class GuideRenderer {
     }
 
     public record Bounds(int left, int top, int right, int bottom) {
-        public Bounds intersect(Bounds other) {
-            int newLeft = Math.max(left, other.left);
-            int newTop = Math.max(top, other.top);
-            int newRight = Math.min(right, other.right);
-            int newBottom = Math.min(bottom, other.bottom);
-            if (newRight <= newLeft || newBottom <= newTop) return this;
-            return new Bounds(newLeft, newTop, newRight, newBottom);
-        }
-    }
-
-    @FunctionalInterface
-    public interface BoundsProvider {
-        Optional<Bounds> get(net.minecraft.client.gui.screens.Screen screen, int width, int height);
     }
 
     public static class Renderable implements net.minecraft.client.gui.components.Renderable {
@@ -91,17 +91,28 @@ public final class GuideRenderer {
         private final Minecraft minecraft;
         private boolean bottomAligned;
         private boolean textContrast;
+        private final Supplier<Bounds> boundsSupplier;
 
         public Renderable(GuideDomain<?> domain, Minecraft minecraft, boolean bottomAligned, boolean textContrast) {
+            this(domain, minecraft, bottomAligned, textContrast, null);
+        }
+
+        public Renderable(GuideDomain<?> domain, Minecraft minecraft, boolean bottomAligned, boolean textContrast,
+                          Supplier<Bounds> boundsSupplier) {
             this.domain = domain;
             this.minecraft = minecraft;
             this.bottomAligned = bottomAligned;
             this.textContrast = textContrast;
+            this.boundsSupplier = boundsSupplier;
         }
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-            GuideRenderer.render(guiGraphics, domain, minecraft, bottomAligned, textContrast);
+            if (boundsSupplier == null) {
+                GuideRenderer.render(guiGraphics, domain, minecraft, bottomAligned, textContrast);
+            } else {
+                GuideRenderer.render(guiGraphics, domain, minecraft, bottomAligned, textContrast, boundsSupplier.get());
+            }
         }
 
         public void setBottomAligned(boolean bottomAligned) {

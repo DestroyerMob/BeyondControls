@@ -5,6 +5,7 @@ import dev.isxander.controlify.api.bind.InputBindingSupplier;
 import dev.isxander.controlify.api.vmousesnapping.SnapPoint;
 import dev.isxander.controlify.bindings.ControlifyBindings;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.gui.guide.GuideDomains;
 import dev.isxander.controlify.gui.guide.GuideRenderer;
 import dev.isxander.controlify.platform.client.PlatformClientUtil;
 import dev.isxander.controlify.platform.main.PlatformMainUtil;
@@ -35,7 +36,6 @@ public final class RecipeViewerCompat {
     private static boolean jeiLoaded;
     private static boolean emiLoaded;
     private static final int EDGE_PADDING = 4;
-    private static final int RECIPE_GUIDE_HEIGHT = 31;
 
     private RecipeViewerCompat() {
     }
@@ -45,7 +45,6 @@ public final class RecipeViewerCompat {
         emiLoaded = PlatformMainUtil.isModLoaded("emi");
         if (jeiLoaded) registerRecipeScreen(JEI_RECIPE_SCREEN);
         if (emiLoaded) registerRecipeScreen(EMI_RECIPE_SCREEN);
-        GuideRenderer.registerBoundsProvider(RecipeViewerCompat::guideBounds);
         VirtualMouseHandler.registerSnapPointProvider(RecipeViewerCompat::collectSnapPoints);
     }
 
@@ -179,32 +178,28 @@ public final class RecipeViewerCompat {
                 glyph(ControlifyBindings.VMOUSE_SCROLL_UP, controller.get()),
                 glyph(ControlifyBindings.GUI_BACK, controller.get())
         );
-        ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
-        drawGuideLine(graphics, primary, area, area.bottom() - 27);
-        drawGuideLine(graphics, secondary, area, area.bottom() - 15);
+        if (screen instanceof AbstractContainerScreen<?> containerScreen) {
+            GuideRenderer.Bounds bounds = GuideRenderer.belowContainer(containerScreen);
+            int y = bounds.top() + 5 + GuideRenderer.contentHeight(GuideDomains.CONTAINER) + 4;
+            drawGuideLine(graphics, primary, bounds.left(), bounds.right(), y);
+            drawGuideLine(graphics, secondary, bounds.left(), bounds.right(), y + 12);
+        } else {
+            ViewerArea area = viewerArea(screen, graphics.guiWidth(), graphics.guiHeight());
+            drawGuideLine(graphics, primary, area.left(), area.right(), area.bottom() - 27);
+            drawGuideLine(graphics, secondary, area.left(), area.right(), area.bottom() - 15);
+        }
     }
 
     private static Component glyph(InputBindingSupplier supplier, ControllerEntity controller) {
         return supplier.on(controller).inputGlyph();
     }
 
-    private static void drawGuideLine(GuiGraphics graphics, Component line, ViewerArea area, int y) {
+    private static void drawGuideLine(GuiGraphics graphics, Component line, int left, int right, int y) {
         Font font = Minecraft.getInstance().font;
         int width = font.width(line);
-        int x = area.left() + Math.max(0, (area.width() - width) / 2);
+        int x = left + Math.max(0, (right - left - width) / 2);
         graphics.fill(x - 3, y - 2, x + width + 3, y + font.lineHeight + 2, 0xC0000000);
         graphics.drawString(font, line, x, y, 0xFFFFFFFF, false);
-    }
-
-    private static Optional<GuideRenderer.Bounds> guideBounds(Screen screen, int width, int height) {
-        if (screen == null || (!isRecipeViewerScreen(screen)
-                && (!(screen instanceof AbstractContainerScreen<?>) || !hasVisibleOverlay()))) {
-            return Optional.empty();
-        }
-        ViewerArea area = viewerArea(screen, width, height);
-        return Optional.of(new GuideRenderer.Bounds(
-                area.left(), area.top(), area.right(), Math.max(area.top() + 1, area.bottom() - RECIPE_GUIDE_HEIGHT)
-        ));
     }
 
     private static ViewerArea viewerArea(Screen screen, int width, int height) {

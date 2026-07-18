@@ -44,8 +44,9 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         this.guideRenderable = new GuideRenderer.Renderable(
                 GuideDomains.CONTAINER,
                 minecraft,
-                true,
-                false
+                false,
+                false,
+                () -> GuideRenderer.belowContainer(screen)
         );
     }
 
