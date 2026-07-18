@@ -101,7 +101,7 @@ public final class GuideRenderer {
                     );
                 });
 
-        int gap = 5;
+        int gap = 2;
         int topSpace = tooltip.top() - gap;
         int bottomSpace = graphics.guiHeight() - tooltip.bottom() - gap;
         boolean placeBelow = bottomSpace >= hintHeight && (topSpace < hintHeight || bottomSpace >= topSpace);

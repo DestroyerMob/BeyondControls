@@ -314,6 +314,9 @@ public final class RecipeViewerCompat {
             } catch (Throwable ignored) {
             }
         }
+        // EMI and JEI render their tooltips in the post-screen phase. Place the
+        // item actions here as well so the tracker sees this frame's exact tooltip.
+        renderTooltipAwareItemHints(screen, graphics, activeController, mouseX, mouseY);
     }
 
     public static void renderTooltipAwareItemHints(Screen screen, GuiGraphics graphics,

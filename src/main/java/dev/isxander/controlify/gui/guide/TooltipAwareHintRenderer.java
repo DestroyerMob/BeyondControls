@@ -1,7 +1,6 @@
 package dev.isxander.controlify.gui.guide;
 
 import dev.isxander.controlify.Controlify;
-import dev.isxander.controlify.compatibility.recipeviewer.RecipeViewerCompat;
 import dev.isxander.controlify.screenop.ScreenProcessorProvider;
 import dev.isxander.controlify.screenop.compat.vanilla.AbstractContainerScreenProcessor;
 import net.minecraft.client.gui.GuiGraphics;
@@ -22,9 +21,6 @@ public final class TooltipAwareHintRenderer {
             if (processor instanceof AbstractContainerScreenProcessor<?> containerProcessor) {
                 containerProcessor.renderTooltipAwareHints(controller, graphics);
             }
-            RecipeViewerCompat.renderTooltipAwareItemHints(
-                    screen, graphics, controller, mouseX, mouseY
-            );
         });
     }
 }
