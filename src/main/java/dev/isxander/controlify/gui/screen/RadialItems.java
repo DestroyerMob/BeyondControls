@@ -6,6 +6,7 @@ import dev.isxander.controlify.api.radial.ContextualRadialAction;
 import dev.isxander.controlify.bindings.RadialIcons;
 import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.config.settings.profile.InputSettings;
 import dev.isxander.controlify.utils.CUtil;
 import dev.isxander.controlify.utils.DebugOverlayHelper;
 import dev.isxander.controlify.utils.render.CGuiPose;
@@ -27,12 +28,16 @@ public final class RadialItems {
     public static final RadialMenuScreen.RadialItem EMPTY_ACTION = new RadialItemRecord(Component.empty(), RadialIcon.EMPTY, () -> false, RadialIcons.EMPTY);
 
     public static RadialMenuScreen.RadialItem[] createBindings(ControllerEntity controller) {
+        return createBindings(controller, InputSettings.RadialMenuSettings.RIGHT);
+    }
+
+    public static RadialMenuScreen.RadialItem[] createBindings(ControllerEntity controller, int wheel) {
         RadialMenuScreen.RadialItem[] items = new RadialMenuScreen.RadialItem[8];
 
         for (int i = 0; i < 8; i++) {
-            Identifier configuredBindingId = controller.settings().input.radialMenu.radialActions.get(i);
+            Identifier configuredBindingId = controller.settings().input.radialMenu.radialWheels.get(wheel).get(i);
             ContextualRadialAction contextualAction = new ContextualRadialAction(
-                    Minecraft.getInstance(), controller, i, configuredBindingId
+                    Minecraft.getInstance(), controller, wheel, i, configuredBindingId
             );
             ControlifyEvents.CONTEXTUAL_RADIAL_ACTION.invoke(contextualAction);
 
@@ -40,6 +45,30 @@ public final class RadialItems {
         }
 
         return items;
+    }
+
+    public static boolean playQuickAction(ControllerEntity controller, int wheel) {
+        Identifier action = controller.settings().input.radialMenu.quickActions.get(wheel);
+        if (RadialIcons.EMPTY.equals(action)) {
+            return false;
+        }
+        return getItemForBinding(action, controller).playAction();
+    }
+
+    public static List<Identifier> getBindingCandidates(ControllerEntity controller) {
+        List<Identifier> candidates = new ArrayList<>();
+        candidates.add(RadialIcons.EMPTY);
+        controller.input().orElseThrow().getAllBindings().forEach(binding ->
+                binding.radialIcon().ifPresent(icon -> candidates.add(binding.id())));
+        return candidates;
+    }
+
+    public static Component getBindingName(ControllerEntity controller, Identifier id) {
+        if (RadialIcons.EMPTY.equals(id)) {
+            return Component.translatable("controlify.radial.empty_action");
+        }
+        InputBinding binding = controller.input().orElseThrow().getBinding(id);
+        return binding == null ? Component.literal(id.toString()) : binding.name();
     }
 
     public static RadialMenuScreen.RadialItem[] createGameModes() {
@@ -273,6 +302,9 @@ public final class RadialItems {
     }
 
     private static RadialMenuScreen.RadialItem getItemForBinding(Identifier id, ControllerEntity controller) {
+        if (RadialIcons.EMPTY.equals(id)) {
+            return EMPTY_ACTION;
+        }
         InputBinding binding = controller.input().orElseThrow().getBinding(id);
 
         if (binding == null || binding.radialIcon().isEmpty()) {
@@ -360,19 +392,26 @@ public final class RadialItems {
     public static class BindingEditMode implements RadialMenuScreen.EditMode {
 
         private final ControllerEntity controller;
+        private final int wheel;
 
         public BindingEditMode(ControllerEntity controller) {
+            this(controller, InputSettings.RadialMenuSettings.RIGHT);
+        }
+
+        public BindingEditMode(ControllerEntity controller, int wheel) {
             this.controller = controller;
+            this.wheel = wheel;
         }
 
         @Override
         public void setRadialItem(int index, RadialMenuScreen.RadialItem item) {
-            controller.settings().input.radialMenu.radialActions.set(index, ((RadialItemRecord) item).id());
+            controller.settings().input.radialMenu.radialWheels.get(wheel).set(index, ((RadialItemRecord) item).id());
         }
 
         @Override
         public List<RadialMenuScreen.RadialItem> getEditCandidates() {
             List<RadialMenuScreen.RadialItem> items = new ArrayList<>();
+            items.add(EMPTY_ACTION);
 
             controller.input().orElseThrow().getAllBindings().forEach(binding -> {
                 binding.radialIcon().ifPresent(icon -> {

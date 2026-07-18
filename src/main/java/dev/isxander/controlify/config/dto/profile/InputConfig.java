@@ -65,16 +65,27 @@ public record InputConfig(
 
     public record RadialMenuConfig(
             List<Identifier> radialActions,
+            List<List<Identifier>> radialWheels,
+            List<Identifier> quickActions,
             int radialButtonFocusTimeoutTicks
     ) {
         public static final Codec<RadialMenuConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Identifier.CODEC.listOf(8, 8).fieldOf("actions").forGetter(RadialMenuConfig::radialActions),
+                Identifier.CODEC.listOf(8, 8).listOf(4, 4).optionalFieldOf("wheels", List.of()).forGetter(RadialMenuConfig::radialWheels),
+                Identifier.CODEC.listOf(4, 4).optionalFieldOf("quick_actions", List.of()).forGetter(RadialMenuConfig::quickActions),
                 Codec.INT.fieldOf("button_focus_timeout_ticks").forGetter(RadialMenuConfig::radialButtonFocusTimeoutTicks)
         ).apply(instance, RadialMenuConfig::new));
 
         public RadialMenuConfig {
             if (radialActions.size() != 8) {
                 throw new IllegalArgumentException("radialActions must have exactly 8 elements");
+            }
+            if (!radialWheels.isEmpty() && (radialWheels.size() != 4
+                    || radialWheels.stream().anyMatch(wheel -> wheel.size() != 8))) {
+                throw new IllegalArgumentException("radialWheels must be empty or contain four 8-action wheels");
+            }
+            if (!quickActions.isEmpty() && quickActions.size() != 4) {
+                throw new IllegalArgumentException("quickActions must be empty or contain four actions");
             }
         }
     }

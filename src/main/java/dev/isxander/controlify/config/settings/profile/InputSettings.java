@@ -4,6 +4,7 @@ import dev.isxander.controlify.bindings.input.Input;
 import dev.isxander.controlify.config.dto.profile.InputConfig;
 import dev.isxander.controlify.controller.input.mapping.ControllerMapping;
 import dev.isxander.controlify.ingame.InputCurves;
+import dev.isxander.controlify.utils.CUtil;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
@@ -142,23 +143,53 @@ public class InputSettings {
     }
 
     public static class RadialMenuSettings {
-        public List<Identifier> radialActions;
+        public static final int UP = 0;
+        public static final int DOWN = 1;
+        public static final int LEFT = 2;
+        public static final int RIGHT = 3;
+        public static final int WHEEL_COUNT = 4;
+
+        public List<List<Identifier>> radialWheels;
+        public List<Identifier> quickActions;
         public int radialButtonFocusTimeoutTicks;
 
-        public RadialMenuSettings(List<Identifier> radialActions, int radialButtonFocusTimeoutTicks) {
-            if (radialActions.size() != 8) {
-                throw new IllegalArgumentException("radialActions must have exactly 8 elements");
+        public RadialMenuSettings(List<List<Identifier>> radialWheels,
+                                  List<Identifier> quickActions,
+                                  int radialButtonFocusTimeoutTicks) {
+            if (radialWheels.size() != WHEEL_COUNT
+                    || radialWheels.stream().anyMatch(wheel -> wheel.size() != 8)) {
+                throw new IllegalArgumentException("radialWheels must contain four 8-action wheels");
             }
-            this.radialActions = new ArrayList<>(radialActions);
+            if (quickActions.size() != WHEEL_COUNT) {
+                throw new IllegalArgumentException("quickActions must contain four actions");
+            }
+            this.radialWheels = new ArrayList<>(WHEEL_COUNT);
+            radialWheels.forEach(wheel -> this.radialWheels.add(new ArrayList<>(wheel)));
+            this.quickActions = new ArrayList<>(quickActions);
             this.radialButtonFocusTimeoutTicks = radialButtonFocusTimeoutTicks;
         }
 
         public static RadialMenuSettings fromDTO(InputConfig.RadialMenuConfig dto) {
-            return new RadialMenuSettings(dto.radialActions(), dto.radialButtonFocusTimeoutTicks());
+            List<List<Identifier>> wheels = dto.radialWheels().isEmpty()
+                    ? java.util.stream.IntStream.range(0, WHEEL_COUNT)
+                            .mapToObj(index -> dto.radialActions())
+                            .toList()
+                    : dto.radialWheels();
+            List<Identifier> quickActions = dto.quickActions().isEmpty()
+                    ? List.of(
+                            CUtil.rl("open_chat"),
+                            CUtil.rl("drop"),
+                            CUtil.rl("pick_block"),
+                            CUtil.rl("empty")
+                    )
+                    : dto.quickActions();
+            return new RadialMenuSettings(wheels, quickActions, dto.radialButtonFocusTimeoutTicks());
         }
 
         public InputConfig.RadialMenuConfig toDTO() {
-            return new InputConfig.RadialMenuConfig(radialActions, radialButtonFocusTimeoutTicks);
+            return new InputConfig.RadialMenuConfig(
+                    radialWheels.get(RIGHT), radialWheels, quickActions, radialButtonFocusTimeoutTicks
+            );
         }
     }
 }

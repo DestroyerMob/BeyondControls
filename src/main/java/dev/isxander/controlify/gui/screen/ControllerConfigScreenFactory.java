@@ -634,33 +634,57 @@ public class ControllerConfigScreenFactory {
 
         List<OptionBindPair> optionBinds = new ArrayList<>();
 
-        category
-                .optionIf(controller.isPresent(), ButtonOption.createBuilder()
-                        .name(Component.translatable("controlify.gui.radial_menu").withStyle(ChatFormatting.GOLD))
+        if (controller.isPresent()) {
+            ControllerEntity configuredController = controller.orElseThrow();
+            List<Identifier> quickActionCandidates = RadialItems.getBindingCandidates(configuredController);
+            String[] directions = {"up", "down", "left", "right"};
+
+            for (int wheel = 0; wheel < InputSettings.RadialMenuSettings.WHEEL_COUNT; wheel++) {
+                int wheelIndex = wheel;
+                String direction = directions[wheel];
+
+                category.option(ButtonOption.createBuilder()
+                        .name(Component.translatable("controlify.gui.radial_menu." + direction).withStyle(ChatFormatting.GOLD))
                         .description(OptionDescription.createBuilder()
-                                .text(Component.translatable("controlify.gui.radial_menu.tooltip"))
+                                .text(Component.translatable("controlify.gui.radial_menu.wheel.tooltip"))
                                 .build())
                         .action((screen, opt) -> Minecraft.getInstance().setScreen(new RadialMenuScreen(
-                                controller.orElseThrow(),
+                                configuredController,
                                 null,
-                                RadialItems.createBindings(controller.get()),
+                                RadialItems.createBindings(configuredController, wheelIndex),
                                 Component.empty(),
-                                new RadialItems.BindingEditMode(controller.get()),
+                                new RadialItems.BindingEditMode(configuredController, wheelIndex),
                                 screen
                         )))
                         .text(Component.translatable("controlify.gui.radial_menu.btn_text"))
-                        .build())
-                .option(Option.<Integer>createBuilder()
-                        .name(Component.translatable("controlify.gui.radial_menu.btn_focus_timeout"))
-                        .description(OptionDescription.createBuilder()
-                                .text(Component.translatable("controlify.gui.radial_menu.btn_focus_timeout.tooltip"))
-                                .build())
-                        .binding(radialDef.radialButtonFocusTimeoutTicks,
-                                () -> radialConfig.radialButtonFocusTimeoutTicks,
-                                v -> radialConfig.radialButtonFocusTimeoutTicks = v)
-                        .controller(opt -> IntegerSliderControllerBuilder.create(opt)
-                                .range(2, 40).step(1).formatValue(ticksToMillisFormatter))
                         .build());
+
+                category.option(Option.<Identifier>createBuilder()
+                        .name(Component.translatable("controlify.gui.radial_menu.quick_action." + direction))
+                        .description(OptionDescription.createBuilder()
+                                .text(Component.translatable("controlify.gui.radial_menu.quick_action.tooltip"))
+                                .build())
+                        .binding(radialDef.quickActions.get(wheelIndex),
+                                () -> radialConfig.quickActions.get(wheelIndex),
+                                value -> radialConfig.quickActions.set(wheelIndex, value))
+                        .controller(opt -> CyclingListControllerBuilder.create(opt)
+                                .values(quickActionCandidates)
+                                .formatValue(value -> RadialItems.getBindingName(configuredController, value)))
+                        .build());
+            }
+        }
+
+        category.option(Option.<Integer>createBuilder()
+                .name(Component.translatable("controlify.gui.radial_menu.btn_focus_timeout"))
+                .description(OptionDescription.createBuilder()
+                        .text(Component.translatable("controlify.gui.radial_menu.btn_focus_timeout.tooltip"))
+                        .build())
+                .binding(radialDef.radialButtonFocusTimeoutTicks,
+                        () -> radialConfig.radialButtonFocusTimeoutTicks,
+                        v -> radialConfig.radialButtonFocusTimeoutTicks = v)
+                .controller(opt -> IntegerSliderControllerBuilder.create(opt)
+                        .range(2, 40).step(1).formatValue(ticksToMillisFormatter))
+                .build());
 
         Collection<InputBinding> allBindings = controller.isPresent()
                 ? controller.get().input().map(InputComponent::getAllBindings).orElse(List.of())

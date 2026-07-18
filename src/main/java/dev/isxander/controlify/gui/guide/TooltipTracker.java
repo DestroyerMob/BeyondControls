@@ -10,17 +10,27 @@ public final class TooltipTracker {
     private static Screen currentScreen;
     private static int frameMouseX;
     private static int frameMouseY;
+    private static int previousRetentionFrames;
     private static final List<TrackedTooltip> currentBounds = new ArrayList<>();
     private static final List<TrackedTooltip> previousBounds = new ArrayList<>();
 
     private TooltipTracker() {}
 
     public static void beginFrame(Screen screen, int mouseX, int mouseY) {
-        previousBounds.clear();
-        if (screen == currentScreen) {
+        if (screen != currentScreen) {
+            previousBounds.clear();
+            currentBounds.clear();
+            previousRetentionFrames = 0;
+        } else if (!currentBounds.isEmpty()) {
+            previousBounds.clear();
             previousBounds.addAll(currentBounds);
+            currentBounds.clear();
+            previousRetentionFrames = 2;
+        } else if (previousRetentionFrames > 0) {
+            previousRetentionFrames--;
+        } else {
+            previousBounds.clear();
         }
-        currentBounds.clear();
         currentScreen = screen;
         frameMouseX = mouseX;
         frameMouseY = mouseY;

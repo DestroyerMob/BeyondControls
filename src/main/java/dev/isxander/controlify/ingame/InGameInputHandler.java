@@ -1,6 +1,7 @@
 package dev.isxander.controlify.ingame;
 
 import dev.isxander.controlify.Controlify;
+import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.api.ingameinput.LookInputModifier;
 import dev.isxander.controlify.api.event.ControlifyEvents;
 import dev.isxander.controlify.bindings.ControlifyBindings;
@@ -42,6 +43,8 @@ import org.joml.Vector2f;
 import java.io.File;
 
 public class InGameInputHandler {
+    private static final int ACTION_WHEEL_HOLD_TICKS = 8;
+
     private final ControllerEntity controller;
     private final Controlify controlify;
     private final Minecraft minecraft;
@@ -59,6 +62,10 @@ public class InGameInputHandler {
 
     private final HoldRepeatHelper hotbarNextRepeatHelper;
     private final HoldRepeatHelper hotbarPrevRepeatHelper;
+    private final ActionWheelPressState[] actionWheelStates = {
+            new ActionWheelPressState(), new ActionWheelPressState(),
+            new ActionWheelPressState(), new ActionWheelPressState()
+    };
 
     public InGameInputHandler(ControllerEntity controller) {
         this.controller = controller;
@@ -85,6 +92,10 @@ public class InGameInputHandler {
     protected void handleKeybinds() {
         if (minecraft.screen != null)
             return;
+
+        if (handleActionWheels()) {
+            return;
+        }
 
         if (ControlifyBindings.PAUSE.on(controller).justPressed()) {
             minecraft.pauseGame(false);
@@ -217,16 +228,6 @@ public class InGameInputHandler {
             ((PickBlockAccessor) minecraft).controlify$pickBlockWithNbt();
         }
 
-        if (ControlifyBindings.RADIAL_MENU.on(controller).justPressed()) {
-            minecraft.setScreen(new RadialMenuScreen(
-                    controller,
-                    ControlifyBindings.RADIAL_MENU.on(controller),
-                    RadialItems.createBindings(controller),
-                    Component.translatable("controlify.radial_menu.configure_hint"),
-                    null, null
-            ));
-        }
-
         if (ControlifyBindings.GAME_MODE_SWITCHER.on(controller).justPressed()) {
             minecraft.setScreen(new RadialMenuScreen(
                     controller,
@@ -266,6 +267,67 @@ public class InGameInputHandler {
                         null, null
                 ));
             }
+        }
+    }
+
+    private boolean handleActionWheels() {
+        return handleActionWheel(
+                ControlifyBindings.RADIAL_MENU_UP.on(controller),
+                InputSettings.RadialMenuSettings.UP
+        ) || handleActionWheel(
+                ControlifyBindings.RADIAL_MENU_DOWN.on(controller),
+                InputSettings.RadialMenuSettings.DOWN
+        ) || handleActionWheel(
+                ControlifyBindings.RADIAL_MENU_LEFT.on(controller),
+                InputSettings.RadialMenuSettings.LEFT
+        ) || handleActionWheel(
+                ControlifyBindings.RADIAL_MENU.on(controller),
+                InputSettings.RadialMenuSettings.RIGHT
+        );
+    }
+
+    private boolean handleActionWheel(InputBinding binding, int wheel) {
+        ActionWheelPressState state = actionWheelStates[wheel];
+
+        if (state.opened) {
+            if (!binding.digitalNow()) {
+                state.reset();
+            }
+            return false;
+        }
+
+        if (binding.justPressed()) {
+            state.heldTicks = 0;
+        }
+
+        if (binding.digitalNow()) {
+            state.heldTicks++;
+            if (state.heldTicks >= ACTION_WHEEL_HOLD_TICKS) {
+                state.opened = true;
+                minecraft.setScreen(new RadialMenuScreen(
+                        controller,
+                        binding,
+                        RadialItems.createBindings(controller, wheel),
+                        Component.translatable("controlify.radial_menu.configure_hint"),
+                        null, null
+                ));
+                return true;
+            }
+        } else if (binding.justReleased()) {
+            RadialItems.playQuickAction(controller, wheel);
+            state.reset();
+        }
+
+        return false;
+    }
+
+    private static final class ActionWheelPressState {
+        private int heldTicks;
+        private boolean opened;
+
+        private void reset() {
+            heldTicks = 0;
+            opened = false;
         }
     }
 

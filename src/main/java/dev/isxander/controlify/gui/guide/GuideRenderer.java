@@ -86,6 +86,34 @@ public final class GuideRenderer {
         return best == null ? new HintPosition(2, 2) : best;
     }
 
+    public static HintPosition placeAboveOrBelowTooltip(GuiGraphics graphics, Bounds target,
+                                                        int hintWidth, int hintHeight) {
+        Bounds tooltip = TooltipTracker.boundsFor(Minecraft.getInstance().screen).stream()
+                .min((first, second) -> Integer.compare(
+                        first.distanceSquaredTo(target), second.distanceSquaredTo(target)
+                ))
+                .orElseGet(() -> {
+                    int centerY = target.top() + target.height() / 2;
+                    int estimatedHalfHeight = Math.min(64, Math.max(32, graphics.guiHeight() / 8));
+                    return new Bounds(
+                            target.left(), centerY - estimatedHalfHeight,
+                            target.right(), centerY + estimatedHalfHeight
+                    );
+                });
+
+        int gap = 5;
+        int topSpace = tooltip.top() - gap;
+        int bottomSpace = graphics.guiHeight() - tooltip.bottom() - gap;
+        boolean placeBelow = bottomSpace >= hintHeight && (topSpace < hintHeight || bottomSpace >= topSpace);
+        int y = placeBelow
+                ? tooltip.bottom() + gap
+                : tooltip.top() - hintHeight - gap;
+        int x = tooltip.left() + (tooltip.width() - hintWidth) / 2;
+        return new HintPosition(x, y).clamp(
+                graphics.guiWidth(), graphics.guiHeight(), hintWidth, hintHeight
+        );
+    }
+
     private static Bounds likelyTooltipRegion(GuiGraphics graphics, Bounds target) {
         int cursorX = target.left() + target.width() / 2;
         int estimatedTooltipWidth = Math.min(320, Math.max(160, graphics.guiWidth() * 2 / 5));
@@ -151,6 +179,12 @@ public final class GuideRenderer {
             int width = Math.max(0, Math.min(right, other.right) - Math.max(left, other.left));
             int height = Math.max(0, Math.min(bottom, other.bottom) - Math.max(top, other.top));
             return width * height;
+        }
+
+        public int distanceSquaredTo(Bounds other) {
+            int x = Math.max(0, Math.max(left - other.right, other.left - right));
+            int y = Math.max(0, Math.max(top - other.bottom, other.top - bottom));
+            return x * x + y * y;
         }
     }
 

@@ -14,13 +14,19 @@ import java.util.Objects;
 public final class ContextualRadialAction {
     private final Minecraft minecraft;
     private final ControllerEntity controller;
+    private final int wheel;
     private final int slot;
     private final Identifier configuredAction;
     private Identifier resolvedAction;
 
     public ContextualRadialAction(Minecraft minecraft, ControllerEntity controller, int slot, Identifier configuredAction) {
+        this(minecraft, controller, 3, slot, configuredAction);
+    }
+
+    public ContextualRadialAction(Minecraft minecraft, ControllerEntity controller, int wheel, int slot, Identifier configuredAction) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.controller = Objects.requireNonNull(controller, "controller");
+        this.wheel = wheel;
         this.slot = slot;
         this.configuredAction = Objects.requireNonNull(configuredAction, "configuredAction");
         this.resolvedAction = configuredAction;
@@ -32,6 +38,13 @@ public final class ContextualRadialAction {
 
     public ControllerEntity controller() {
         return controller;
+    }
+
+    /**
+     * The configured wheel index: up, down, left, then right.
+     */
+    public int wheel() {
+        return wheel;
     }
 
     public int slot() {

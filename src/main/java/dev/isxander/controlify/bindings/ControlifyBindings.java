@@ -294,6 +294,22 @@ public final class ControlifyBindings {
     public static final InputBindingSupplier RADIAL_MENU = ControlifyBindApi.get().registerBinding(builder -> builder
             .id("controlify", "radial_menu")
             .category(RADIAL_CATEGORY)
+            .priority(100)
+            .allowedContexts(BindContext.IN_GAME, BindContext.RADIAL_MENU));
+    public static final InputBindingSupplier RADIAL_MENU_UP = ControlifyBindApi.get().registerBinding(builder -> builder
+            .id("controlify", "radial_menu_up")
+            .category(RADIAL_CATEGORY)
+            .priority(100)
+            .allowedContexts(BindContext.IN_GAME, BindContext.RADIAL_MENU));
+    public static final InputBindingSupplier RADIAL_MENU_DOWN = ControlifyBindApi.get().registerBinding(builder -> builder
+            .id("controlify", "radial_menu_down")
+            .category(RADIAL_CATEGORY)
+            .priority(100)
+            .allowedContexts(BindContext.IN_GAME, BindContext.RADIAL_MENU));
+    public static final InputBindingSupplier RADIAL_MENU_LEFT = ControlifyBindApi.get().registerBinding(builder -> builder
+            .id("controlify", "radial_menu_left")
+            .category(RADIAL_CATEGORY)
+            .priority(100)
             .allowedContexts(BindContext.IN_GAME, BindContext.RADIAL_MENU));
     public static final InputBindingSupplier RADIAL_AXIS_UP = ControlifyBindApi.get().registerBinding(builder -> builder
             .id("controlify", "radial_axis_up")

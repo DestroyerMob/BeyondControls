@@ -187,7 +187,8 @@ public final class TheHolyMigrationFix extends DataFix {
         // Build radial_menu sub-object
         Dynamic<T> radialMenu = root.createMap(Map.of(
                 root.createString("actions"), old.get("radial_actions")
-                        .result().orElse(root.createList(defaults.radialMenu.radialActions.stream()
+                        .result().orElse(root.createList(defaults.radialMenu.radialWheels
+                                .get(dev.isxander.controlify.config.settings.profile.InputSettings.RadialMenuSettings.RIGHT).stream()
                                 .map(id -> root.createString(id.toString())))),
                 root.createString("button_focus_timeout_ticks"), old.get("radial_button_focus_timeout_ticks")
                         .result().orElse(root.createInt(defaults.radialMenu.radialButtonFocusTimeoutTicks))

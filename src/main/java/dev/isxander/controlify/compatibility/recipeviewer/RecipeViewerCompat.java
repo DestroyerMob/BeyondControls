@@ -442,7 +442,7 @@ public final class RecipeViewerCompat {
         if (visibleHints == 0) return;
         int rowHeight = Minecraft.getInstance().font.lineHeight + 5;
         int totalHeight = visibleHints * rowHeight - 2;
-        var position = GuideRenderer.placeContextHint(
+        var position = GuideRenderer.placeAboveOrBelowTooltip(
                 graphics,
                 new GuideRenderer.Bounds(mouseX - 8, mouseY - 8, mouseX + 9, mouseY + 9),
                 maxWidth,
