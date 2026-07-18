@@ -282,7 +282,6 @@ public final class RecipeViewerCompat {
         Optional<ControllerEntity> controller = Controlify.instance().getCurrentController();
         if (controller.isEmpty() || !controller.get().settings().generic.guide.showScreenGuides) return;
         ControllerEntity activeController = controller.get();
-        boolean hoveredViewerItem = false;
 
         if (emiLoaded) {
             try {
@@ -291,7 +290,6 @@ public final class RecipeViewerCompat {
                 } else {
                     renderEmiSidebarHints(graphics, activeController, mouseX, mouseY);
                 }
-                hoveredViewerItem = hasHoveredEmiStack(mouseX, mouseY);
             } catch (Throwable ignored) {
             }
         }
@@ -299,6 +297,24 @@ public final class RecipeViewerCompat {
             try {
                 if (isScreen(screen, JEI_RECIPE_SCREEN)) {
                     renderJeiRecipeHints(screen, graphics, activeController);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    public static void renderTooltipAwareItemHints(Screen screen, GuiGraphics graphics,
+                                                   ControllerEntity controller, int mouseX, int mouseY) {
+        boolean hoveredViewerItem = false;
+        if (emiLoaded) {
+            try {
+                hoveredViewerItem = hasHoveredEmiStack(mouseX, mouseY);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (jeiLoaded) {
+            try {
+                if (isScreen(screen, JEI_RECIPE_SCREEN)) {
                     hoveredViewerItem |= valuePresent(invoke(
                             screen, "getIngredientUnderMouse", (double) mouseX, (double) mouseY
                     ));
@@ -309,7 +325,7 @@ public final class RecipeViewerCompat {
             }
         }
         if (hoveredViewerItem && !hasHoveredContainerSlot(screen)) {
-            renderItemActionGlyphs(graphics, activeController, mouseX, mouseY);
+            renderItemActionGlyphs(graphics, controller, mouseX, mouseY);
         }
     }
 

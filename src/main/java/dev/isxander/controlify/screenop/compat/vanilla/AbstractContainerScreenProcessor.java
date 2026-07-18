@@ -20,7 +20,6 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -86,9 +85,7 @@ public class AbstractContainerScreenProcessor<T extends AbstractContainerScreen<
         }
     }
 
-    @Override
-    protected void render(ControllerEntity controller, GuiGraphics graphics, float tickDelta,
-                          Optional<VirtualMouseHandler> vmouse) {
+    public void renderTooltipAwareHints(ControllerEntity controller, GuiGraphics graphics) {
         if (!controller.settings().generic.guide.showScreenGuides) return;
         Slot slot = hoveredSlot.get();
         if (slot == null) return;
