@@ -42,5 +42,4 @@ stonecutter {
     }
 }
 
-rootProject.name = "Controlify"
-
+rootProject.name = "BeyondControls"

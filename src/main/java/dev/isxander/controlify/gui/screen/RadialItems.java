@@ -1,6 +1,8 @@
 package dev.isxander.controlify.gui.screen;
 
 import dev.isxander.controlify.api.bind.RadialIcon;
+import dev.isxander.controlify.api.event.ControlifyEvents;
+import dev.isxander.controlify.api.radial.ContextualRadialAction;
 import dev.isxander.controlify.bindings.RadialIcons;
 import dev.isxander.controlify.api.bind.InputBinding;
 import dev.isxander.controlify.controller.ControllerEntity;
@@ -28,9 +30,13 @@ public final class RadialItems {
         RadialMenuScreen.RadialItem[] items = new RadialMenuScreen.RadialItem[8];
 
         for (int i = 0; i < 8; i++) {
-            Identifier bindingId = controller.settings().input.radialMenu.radialActions.get(i);
+            Identifier configuredBindingId = controller.settings().input.radialMenu.radialActions.get(i);
+            ContextualRadialAction contextualAction = new ContextualRadialAction(
+                    Minecraft.getInstance(), controller, i, configuredBindingId
+            );
+            ControlifyEvents.CONTEXTUAL_RADIAL_ACTION.invoke(contextualAction);
 
-            items[i] = getItemForBinding(bindingId, controller);
+            items[i] = getItemForBinding(contextualAction.resolvedAction(), controller);
         }
 
         return items;

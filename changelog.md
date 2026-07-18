@@ -1,12 +1,11 @@
-# Controlify {version}
+# Beyond Controls {version}
 
 This version has the following targets:
 {targets}
 
-[![](https://short.isxander.dev/bisect-img)](https://short.isxander.dev/bisect)
-
-**By donating on my [Patreon](https://patreon.com/isxander), you will gain access to builds of Controlify for splitscreen support and snapshot versions**
-
 ## Changes
 
-- Make mixin more compatible with other mods
+- Establish the Minecraft Beyond fork on Controlify's LTS branch.
+- Keep the `controlify` mod ID for compatibility while giving fork builds distinct name and version metadata.
+- Prevent accidental publishing to Controlify's upstream distribution projects.
+- Add an API hook for resolving radial-menu actions from live gameplay context.

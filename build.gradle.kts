@@ -19,7 +19,7 @@ val loader = when {
 modstitch {
     metadata {
         modId = "controlify"
-        modName = "Controlify"
+        modName = property("modName").toString()
     }
 
     mixin {
@@ -189,6 +189,15 @@ sourceSets {
 
 tasks.processResources {
     dependsOn(prepareNatives)
+
+    from(rootProject.file("LICENSE")) {
+        into("META-INF")
+        rename { "LICENSE_BeyondControls" }
+    }
+    from(rootProject.file("FORK_NOTICE.md")) {
+        into("META-INF")
+        rename { "FORK_NOTICE_BeyondControls.md" }
+    }
 }
 /*
 END
@@ -284,18 +293,9 @@ publishing {
         create<MavenPublication>("mod") {
             from(components["java"])
 
-            artifactId = "controlify"
-            groupId = "dev.isxander"
+            artifactId = "beyond-controls"
+            groupId = "org.destroyermob"
         }
     }
 
-    repositories {
-        maven("https://maven.isxander.dev/releases") {
-            name = "XanderMaven"
-            credentials {
-                username = secrets.gradleProperty("maven.username").orNull
-                password = secrets.gradleProperty("maven.password").orNull
-            }
-        }
-    }
 }

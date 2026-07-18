@@ -2,6 +2,7 @@ package dev.isxander.controlify.api.event;
 
 import dev.isxander.controlify.InputMode;
 import dev.isxander.controlify.api.ingameinput.LookInputModifier;
+import dev.isxander.controlify.api.radial.ContextualRadialAction;
 import dev.isxander.controlify.controller.ControllerEntity;
 import dev.isxander.controlify.platform.EventHandler;
 
@@ -41,6 +42,13 @@ public final class ControlifyEvents {
      * These modifiers are called before the look input is multiplied by the sensitivity.
      */
     public static final EventHandler<LookInputModifier> LOOK_INPUT_MODIFIER = EventHandler.createPlatformBackedEvent();
+
+    /**
+     * Resolves a radial-menu slot from live client context when the menu opens.
+     * Callbacks may replace {@link ContextualRadialAction#resolvedAction()} and
+     * should leave it unchanged when they do not recognise the current context.
+     */
+    public static final EventHandler<ContextualRadialAction> CONTEXTUAL_RADIAL_ACTION = EventHandler.createPlatformBackedEvent();
 
     public record ControllerConnected(ControllerEntity controller, boolean hotplugged, @Deprecated boolean newController) {
     }

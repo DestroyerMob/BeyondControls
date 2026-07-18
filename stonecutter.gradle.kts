@@ -50,7 +50,8 @@ val modVersion: String by project
 version = modVersion
 
 publishMods {
-    dryRun = false
+    // Fork builds must never publish to Controlify's upstream project IDs by accident.
+    dryRun = true
 
     val modChangelog = provider {
         rootProject.file("changelog.md")
